@@ -6,11 +6,10 @@ A lightweight and customizable **Windows hardware monitor** — track your CPU, 
 
 > 🟢 **Download the latest version:** [📦 GitHub Releases → LiteMonitor Latest](https://github.com/Diorser/LiteMonitor/releases/latest)
 
-
-![LiteMonitor Overview](./screenshots/overview.png)
-
 LiteMonitor is a modern, minimal **desktop system monitor** built with **.NET 8 (WinForms)**.  
 It offers smooth animations, theme customization, transparency control, and multilingual UI — a lightweight alternative to traditional **traffic and system monitor tools**.
+
+![LiteMonitor Overview](./screenshots/overview.png)
 
 ---
 

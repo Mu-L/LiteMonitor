@@ -5,10 +5,10 @@
 
 > 🟢 **立即下载最新版本：** [📦 GitHub Releases → LiteMonitor 最新版](https://github.com/Diorser/LiteMonitor/releases/latest)
 
-![LiteMonitor 主界面](./screenshots/overview.png)
-
 LiteMonitor 是一款基于 **.NET 8 / WinForms** 的现代化桌面系统监控工具。  
 支持多语言界面、主题切换、平滑动画、透明圆角显示，界面简洁且高度可配置。
+
+![LiteMonitor 主界面](./screenshots/overview.png)
 
 ---
 
