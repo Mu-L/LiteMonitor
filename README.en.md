@@ -32,6 +32,7 @@ It offers smooth animations, theme customization, transparency control, and mult
 | Feature | Description |
 |---|---|
 | 🎨 Theme Customization | JSON-defined colors, fonts, spacing, and corner radius; themes are extensible and reusable. |
+| 🔴🟡🟢 **Three-Level Color Alerts** | Metric bars and values change color dynamically based on thresholds, with fully customizable colors. |
 | 🌍 Multilingual UI | Supports 8 languages (Chinese, English, Japanese, Korean, French, German, Spanish, Russian). Language switch takes effect instantly without restart. |
 | 📊 Show/Hide Monitoring Items | Selectively display CPU, GPU, Memory, Disk, and Network modules to focus on what matters. |
 | 📏 Adjustable Width | Change panel width from the context menu; layout adapts instantly with no restart. |
