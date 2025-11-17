@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Net.Http;
+using System.Reflection;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -10,7 +11,6 @@ namespace LiteMonitor.src.System
     public static class UpdateChecker
     {
         private const string VersionUrl = "https://raw.githubusercontent.com/Diorser/LiteMonitor/master/resources/version.json";
-        private const string ReleasePage = "https://github.com/Diorser/LiteMonitor/releases/latest";
 
         public static async Task CheckAsync(bool showMessage = false)
         {
@@ -20,29 +20,38 @@ namespace LiteMonitor.src.System
                 var json = await http.GetStringAsync(VersionUrl);
 
                 using var doc = JsonDocument.Parse(json);
-                string? latest = doc.RootElement.GetProperty("version").GetString();
+                var root = doc.RootElement;
 
-                // 当前版本（读取 <Version>）
-                string current = Application.ProductVersion ?? "0.0.0";
+                string latest = Normalize(root.GetProperty("version").GetString());
+                string changelog = root.TryGetProperty("changelog", out var c) ? c.GetString() ?? "" : "";
+                string releaseDate = root.TryGetProperty("releaseDate", out var r) ? r.GetString() ?? "" : "";
+                string downloadUrl = root.TryGetProperty("downloadUrl", out var d) ? d.GetString() ?? "" : "";
 
-                // 去掉 +哈希 后缀
-                latest = Normalize(latest);
+                // 当前版本 - 使用 <Version>（InformationalVersion）
+                string current = typeof(Program).Assembly
+                    .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+                    .InformationalVersion
+                    ?? Application.ProductVersion
+                    ?? "0.0.0";
+
                 current = Normalize(current);
 
+                // 是否发现新版本
                 if (IsNewer(latest, current))
                 {
-                    if (MessageBox.Show(
-                        $"发现新版本：{latest}\n当前版本：{current}\n是否前往下载？",
-                        "LiteMonitor 更新",
-                        MessageBoxButtons.YesNo,
-                        MessageBoxIcon.Information) == DialogResult.Yes)
+                    string msg =$"发现新版本：{latest}\n发布日期：{releaseDate}\n更新内容：{changelog}\n是否前往下载？\n\n当前版本：{current}\n";
+
+                    if (MessageBox.Show(msg, "LiteMonitor 更新",
+                        MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
                     {
-                        Process.Start(new ProcessStartInfo(ReleasePage) { UseShellExecute = true });
+                        if (!string.IsNullOrWhiteSpace(downloadUrl))
+                            Process.Start(new ProcessStartInfo(downloadUrl) { UseShellExecute = true });
                     }
                 }
                 else if (showMessage)
                 {
-                    MessageBox.Show($"当前已是最新版：{current}", "LiteMonitor", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show($"当前已是最新版：{current}", "LiteMonitor",
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
             }
             catch (Exception ex)
