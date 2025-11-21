@@ -90,7 +90,7 @@ namespace LiteMonitor
             string groupLabel = LanguageManager.T($"Groups.{gr.GroupName}");
             if (string.IsNullOrEmpty(groupLabel)) groupLabel = gr.GroupName;
 
-            int titleH = (int)(t.Font.Group * 2.0);
+            int titleH = t.FontGroup.Height;
             int titleY = block.Y - t.Layout.GroupTitleOffset - titleH;
             var titleRect = new Rectangle(block.X + gp, Math.Max(0, titleY),
                                           block.Width - gp * 2, titleH);

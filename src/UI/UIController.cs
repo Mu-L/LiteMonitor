@@ -46,16 +46,34 @@ namespace LiteMonitor
 
             var t = ThemeManager.Current;
 
-            // ✅ 修复点：同步主题宽度或设置的面板宽度
+            // 🟡 新增：DPI 缩放
+
+            float scale = _form.DeviceDpi / 96f;
+
+            var l = t.Layout;
+
+            l.Width = (int)(l.Width * scale);
+            l.RowHeight = (int)(l.RowHeight * scale);
+            l.Padding = (int)(l.Padding * scale);
+            l.GroupPadding = (int)(l.GroupPadding * scale);
+            l.GroupSpacing = (int)(l.GroupSpacing * scale);
+            l.GroupBottom = (int)(l.GroupBottom * scale);
+            l.GroupTitleOffset = (int)(l.GroupTitleOffset * scale);
+            l.ItemGap = (int)(l.ItemGap * scale);
+            l.CornerRadius = (int)(l.CornerRadius * scale);
+            l.GroupRadius = (int)(l.GroupRadius * scale);
+
+            // panel width 也要放大
+            // ✅ 修复点：同步主题宽度或设置里的面板宽度
             if (_cfg.PanelWidth > 100)
             {
-                t.Layout.Width = _cfg.PanelWidth;
-                _form.Width = _cfg.PanelWidth;
+                t.Layout.Width = (int)(_cfg.PanelWidth * scale);
             }
             else
             {
-                _form.Width = t.Layout.Width;
+                t.Layout.Width = (int)(t.Layout.Width * scale);
             }
+            _form.Width = t.Layout.Width;
 
             // ✅ 修复点：切主题时同步窗体背景色，避免边缘露底色
             _form.BackColor = ThemeManager.ParseColor(t.Color.Background);
