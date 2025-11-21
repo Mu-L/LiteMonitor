@@ -1,6 +1,6 @@
 {
   "version": "1.0.3",
-  "changelog": "修复当开启windows显示缩放时，界面错乱的bug",
+  "changelog": "Bug fix / 修复一些已知问题",
   "releaseDate": "2025-11-21",
   "downloadUrl": "https://github.com/Diorser/LiteMonitor/releases"
 }
