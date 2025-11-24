@@ -1,6 +1,6 @@
 {
-  "version": "1.0.4",
-  "changelog": "新增横屏模式、支持选择网卡/磁盘、防拖出桌面，自定义刷新率等多个功能。",
-  "releaseDate": "2025-11-23",
+  "version": "1.0.5",
+  "changelog": "新增菜单栏显示/横屏模式多个功能。",
+  "releaseDate": "2025-11-25",
   "downloadUrl": "https://github.com/Diorser/LiteMonitor/releases"
 }
