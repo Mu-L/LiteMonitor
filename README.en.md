@@ -6,7 +6,7 @@ A lightweight and fully customizable **Windows hardware monitor** — track CPU,
 
 > 🟢 **Download latest version:**  
 > [📦 GitHub Releases → LiteMonitor Latest](https://github.com/Diorser/LiteMonitor/releases/latest)  
-> [💿 Download Website](https://litemonitor.cn/)
+> [⏬ Download Website](https://litemonitor.cn/)
 
 LiteMonitor is a modern **Windows desktop system monitoring tool**.  
 It supports horizontal/vertical display, multiple languages, theme switching, transparency, adaptive DPI scaling, and three-level color alerts — in a clean and highly configurable interface.

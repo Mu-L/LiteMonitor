@@ -5,7 +5,7 @@
 
 A lightweight and customizable desktop hardware monitoring tool — real-time monitoring of system performance such as CPU, GPU, memory, disk, and network.
 
-> 🟢 **立即下载最新版本：** [📦 GitHub Releases → LiteMonitor 最新版](https://github.com/Diorser/LiteMonitor/releases/latest)    /  [💿国内镜像下载网站](https://litemonitor.cn/)    
+> 🟢 **立即下载最新版本：** [📦 GitHub Releases → LiteMonitor 最新版](https://github.com/Diorser/LiteMonitor/releases/latest)    /  [⏬国内镜像网站下载](https://litemonitor.cn/)    
 
 LiteMonitor 是一款基于 **Windows** 的现代化桌面系统监控工具。  
 支持横/竖屏/任务栏显示、主题切换、多语言、透明度显示、三色报警等，界面简洁且高度可配置。
