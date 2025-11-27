@@ -13,7 +13,11 @@ LiteMonitor 是一款基于 **Windows** 的现代化桌面系统监控工具。
 
 ![LiteMonitor 主界面](./resources/screenshots/overview.png)
 
+###  🟢 新增横条模式 / 任务栏显示模式
 ![LiteMonitor 横屏/任务栏显示](./resources/screenshots/overview3.png)
+
+###  🟢 新增网速测试功能
+![LiteMonitor 主题编辑器](./resources/screenshots/overview4.png)
 
 ###  🟢 新增主题编辑器
 ![LiteMonitor 主题编辑器](./resources/screenshots/overview2.jpg)

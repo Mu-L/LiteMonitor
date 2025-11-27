@@ -13,8 +13,11 @@ It supports horizontal/vertical display, multiple languages, theme switching, tr
 
 
 ![LiteMonitor Main UI](./resources/screenshots/overview.png)
-
+###  🟢 **Horizontal Mode / Taskbar Display**
 ![LiteMonitor Horizontal](./resources/screenshots/overview3.png)
+
+###  🟢 **New Network Speed Test Feature**
+![LiteMonitor Network Speed Test](./resources/screenshots/overview4.png)
 
 ###  🟢 **New Theme Editor**
 ![LiteMonitor Theme Editor](./resources/screenshots/overview2.jpg)
