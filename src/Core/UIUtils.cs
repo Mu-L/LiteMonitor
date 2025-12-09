@@ -225,8 +225,21 @@ namespace LiteMonitor.Common
         // ============================================================
         public static GraphicsPath RoundRect(Rectangle r, int radius)
         {
-            int d = radius * 2;
             GraphicsPath p = new GraphicsPath();
+            
+            // ★★★ 修复：如果半径 <= 0，直接添加直角矩形并返回，防止 Crash ★★★
+            if (radius <= 0)
+            {
+                p.AddRectangle(r);
+                return p;
+            }
+
+            int d = radius * 2;
+            
+            // 防御性编程：如果圆角直径比矩形还大，限制它
+            if (d > r.Width) d = r.Width;
+            if (d > r.Height) d = r.Height;
+
             p.AddArc(r.X, r.Y, d, d, 180, 90);
             p.AddArc(r.Right - d, r.Y, d, d, 270, 90);
             p.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
@@ -234,7 +247,6 @@ namespace LiteMonitor.Common
             p.CloseFigure();
             return p;
         }
-
         public static void FillRoundRect(Graphics g, Rectangle r, int radius, Color c)
         {
             using var brush = new SolidBrush(c);
