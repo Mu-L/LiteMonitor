@@ -5,7 +5,7 @@ using System.IO;
 using LibreHardwareMonitor.Hardware;
 using LiteMonitor.src.Core;
 
-namespace LiteMonitor.src.System
+namespace LiteMonitor.src.SystemServices
 {
     // 依然是 HardwareMonitor 的一部分
     public sealed partial class HardwareMonitor

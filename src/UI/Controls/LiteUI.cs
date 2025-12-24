@@ -18,6 +18,7 @@ namespace LiteMonitor.src.UI.Controls
         // Win11 风格导航栏颜色
         public static Color NavSelected = Color.FromArgb(230, 230, 230); 
         public static Color NavHover = Color.FromArgb(235, 235, 235);
+        
     }
 
     // =======================================================================
@@ -285,10 +286,16 @@ namespace LiteMonitor.src.UI.Controls
     public class LiteUnderlineInput : Panel
     {
         public TextBox Inner;
-        public LiteUnderlineInput(string text)
+        public LiteUnderlineInput(string text, Color? foreColor = null)
         {
-            this.Size = new Size(110, 26); this.BackColor = Color.Transparent; this.Padding = new Padding(0, 5, 0, 2); 
-            Inner = new TextBox { Text = text, BorderStyle = BorderStyle.None, Dock = DockStyle.Fill, BackColor = Color.White, Font = new Font("Microsoft YaHei UI", 9F), ForeColor = UIColors.TextMain };
+            this.Size = new Size(110, 26); 
+            this.BackColor = Color.Transparent; 
+            this.Padding = new Padding(0, 5, 0, 2); 
+
+            // 使用传入的颜色或默认颜色
+            this.ForeColor = foreColor ?? UIColors.TextMain;
+
+            Inner = new TextBox { Text = text, BorderStyle = BorderStyle.None, Dock = DockStyle.Fill, BackColor = Color.White, Font = new Font("Microsoft YaHei UI", 9F), ForeColor = this.ForeColor };
             Inner.Enter += (s, e) => this.Invalidate(); Inner.Leave += (s, e) => this.Invalidate();
             this.Controls.Add(Inner); this.Click += (s, e) => Inner.Focus();
         }
@@ -313,5 +320,98 @@ namespace LiteMonitor.src.UI.Controls
     {
         public LiteCard() { BackColor = UIColors.CardBg; AutoSize = true; AutoSizeMode = AutoSizeMode.GrowAndShrink; Dock = DockStyle.Top; Padding = new Padding(1); }
         protected override void OnPaint(PaintEventArgs e) { base.OnPaint(e); using (var p = new Pen(UIColors.Border)) e.Graphics.DrawRectangle(p, 0, 0, Width - 1, Height - 1); }
+    }
+
+    // ★★★ [新增] 1. 基础色块按钮 ★★★
+    public class LiteColorPicker : Control
+    {
+        private Color _color;
+        public event EventHandler? ColorChanged;
+
+        public Color Value 
+        { 
+            get => _color; 
+            set { _color = value; Invalidate(); } 
+        }
+
+        public LiteColorPicker(string initialHex)
+        {
+            SetHex(initialHex);
+            this.Size = new Size(24, 24); // 标准正方形
+            this.Cursor = Cursors.Hand;
+            this.DoubleBuffered = true;
+            this.Click += (s, e) => PickColor();
+        }
+
+        public void SetHex(string hex)
+        {
+            try { _color = ColorTranslator.FromHtml(hex); Invalidate(); } catch {}
+        }
+
+        private void PickColor()
+        {
+            using (var cd = new ColorDialog())
+            {
+                cd.Color = _color;
+                cd.FullOpen = true;
+                if (cd.ShowDialog() == DialogResult.OK)
+                {
+                    _color = cd.Color;
+                    ColorChanged?.Invoke(this, EventArgs.Empty);
+                    Invalidate();
+                }
+            }
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            // 1. 填充颜色
+            using (var b = new SolidBrush(_color)) g.FillRectangle(b, 0, 0, Width - 1, Height - 1);
+            // 2. 绘制灰色边框 (防止白色背景下看不见)
+            using (var p = new Pen(Color.Gray)) g.DrawRectangle(p, 0, 0, Width - 1, Height - 1);
+        }
+    }
+
+    // ★★★ [新增] 2. 组合输入控件 (用于 LiteSettingsItem 右侧) ★★★
+    public class LiteColorInput : Panel
+    {
+        public LiteUnderlineInput Input;
+        public LiteColorPicker Picker;
+
+        public string HexValue 
+        { 
+            get => Input.Inner.Text; 
+            set { Input.Inner.Text = value; Picker.SetHex(value); } 
+        }
+
+        public LiteColorInput(string initialHex)
+        {
+            // 设定总尺寸，和 LiteComboBox (110x28) 保持视觉一致，这里稍微宽一点容纳两个控件
+            this.Size = new Size(92, 28); 
+            
+            // 1. 右侧色块
+            Picker = new LiteColorPicker(initialHex) { 
+                Size = new Size(26, 22), // 稍微扁一点适配行高
+                Location = new Point(this.Width - 26, 3) // 右对齐, 垂直居中
+            };
+
+            // 2. 左侧输入框
+            Input = new LiteUnderlineInput(initialHex,UIColors.TextSub) {
+                Size = new Size(60, 26),
+                Location = new Point(0, 1), // 左对齐
+            };
+
+            // 3. 联动逻辑
+            // Picker 变了 -> 更新 Input
+            Picker.ColorChanged += (s, e) => 
+                Input.Inner.Text = $"#{Picker.Value.R:X2}{Picker.Value.G:X2}{Picker.Value.B:X2}";
+            
+            // Input 变了 -> 更新 Picker
+            Input.Inner.TextChanged += (s, e) => Picker.SetHex(Input.Inner.Text);
+
+            this.Controls.Add(Input);
+            this.Controls.Add(Picker);
+        }
     }
 }

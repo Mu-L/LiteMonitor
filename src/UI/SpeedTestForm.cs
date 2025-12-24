@@ -2,7 +2,7 @@ using System;
 using System.Drawing;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using LiteMonitor.src.System;
+using LiteMonitor.src.SystemServices;
 using LiteMonitor.src.Core;
 using System.Diagnostics;
 using System.Collections.Generic; // 用于 MakeMovable
@@ -301,7 +301,7 @@ namespace LiteMonitor
         {
             try
             {
-                var hardwareMonitor = LiteMonitor.src.System.HardwareMonitor.Instance;
+                var hardwareMonitor = HardwareMonitor.Instance;
                 if (hardwareMonitor != null)
                 {
                     float? uploadBps = hardwareMonitor.Get("NET.Up");

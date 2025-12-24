@@ -7,7 +7,7 @@ using System.Net.NetworkInformation;
 using LiteMonitor.src.Core; // 必须引用
 using Debug = System.Diagnostics.Debug;
 
-namespace LiteMonitor.src.System
+namespace LiteMonitor.src.SystemServices
 {
     // 使用 partial 关键字，表示这是类的一部分
     public sealed partial class HardwareMonitor : IDisposable

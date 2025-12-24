@@ -43,6 +43,21 @@ namespace LiteMonitor
         public string TaskbarFontFamily { get; set; } = "Microsoft YaHei UI";
         public float TaskbarFontSize { get; set; } = 10f;
         public bool TaskbarFontBold { get; set; } = true;
+        
+        // 任务栏行为配置
+        public bool TaskbarClickThrough { get; set; } = false;     // 鼠标穿透
+
+        // ====== 任务栏：高级自定义外观 ======
+        public bool TaskbarCustomStyle { get; set; } = false; // 总开关
+
+        // 颜色配置 (Hex格式)
+        public string TaskbarColorLabel { get; set; } = "#FFFFFF"; // 标签颜色
+        public string TaskbarColorSafe { get; set; } = "#90EE90";  // 正常 (淡绿)
+        public string TaskbarColorWarn { get; set; } = "#FFD700";  // 警告 (金黄)
+        public string TaskbarColorCrit { get; set; } = "#FF4500";  // 严重 (橙红)
+        public string TaskbarColorBg { get; set; } = "#000000";    // 防杂边背景色 (透明键)
+
+        
 
         // ====== 记录与报警 ======
         public float RecordedMaxCpuPower { get; set; } = 65.0f;

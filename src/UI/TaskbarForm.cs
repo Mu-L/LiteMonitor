@@ -36,8 +36,24 @@ namespace LiteMonitor
         // 公开方法：重新加载布局 (保留你的修改)
         public void ReloadLayout()
         {
-            // 重新创建一个布局器，它内部会自动读取最新的 Settings 文件
+           // 1. 重新构建布局 (自动读取最新的 Settings.cs)
             _layout = new HorizontalLayout(ThemeManager.Current, 300, LayoutMode.Taskbar, _cfg);
+            
+            // 2. ★ 核心：应用穿透和颜色 ★
+            // 无论谁调用 ReloadLayout，都确保最新的穿透设置生效
+            SetClickThrough(_cfg.TaskbarClickThrough);
+
+            // 强制刷新主题检查，确保自定义背景色 (TaskbarColorBg) 被应用
+            CheckTheme(true);
+
+            // 3. 触发重绘
+            if (_cols != null && _cols.Count > 0)
+            {
+                _layout.Build(_cols, _taskbarHeight);
+                Width = _layout.PanelWidth;
+                UpdatePlacement(Width);
+            }
+            Invalidate();
         }
 
         public TaskbarForm(Settings cfg, UIController ui, MainForm mainForm)
@@ -65,9 +81,8 @@ namespace LiteMonitor
             // 查找任务栏和托盘区
             FindHandles();
 
-            // 强制创建句柄
-            //CreateControl();
-            CreateHandle();
+            // Windows Forms会在需要时自动创建句柄，无需手动调用
+            // CreateHandle();
 
             // 挂载到任务栏
             AttachToTaskbar();
@@ -227,13 +242,22 @@ namespace LiteMonitor
 
             _lastIsLightTheme = isLight;
 
-            // 核心修复：
-            // 浅色模式 -> 背景设为指定色值（R:210, G:210, B:211）
-            // 深色模式 -> 背景设为黑色
-            if (isLight)
-                _transparentKey = Color.FromArgb(210, 210, 211);
+            // ★★★ [修改] 背景色逻辑 ★★★
+            if (_cfg.TaskbarCustomStyle)
+            {
+                // 自定义模式：使用用户指定的背景色作为透明键
+                try {
+                    _transparentKey = ColorTranslator.FromHtml(_cfg.TaskbarColorBg);
+                } catch {
+                    _transparentKey = Color.Black; 
+                }
+            }
             else
-                _transparentKey = Color.Black;
+            {
+                // 原有模式
+                if (isLight) _transparentKey = Color.FromArgb(210, 210, 211);
+                else _transparentKey = Color.Black;
+            }
 
             // 更新 WinForms 属性
             BackColor = _transparentKey;
@@ -243,6 +267,18 @@ namespace LiteMonitor
             {
                 ApplyLayeredAttribute();
             }
+        }
+
+        // 2. 添加鼠标穿透控制方法
+        public void SetClickThrough(bool enable)
+        {
+            int exStyle = GetWindowLong(Handle, GWL_EXSTYLE);
+            if (enable)
+                exStyle |= WS_EX_TRANSPARENT; // 添加穿透
+            else
+                exStyle &= ~WS_EX_TRANSPARENT; // 移除穿透
+            
+            SetWindowLong(Handle, GWL_EXSTYLE, exStyle);
         }
 
         private void ApplyLayeredAttribute()

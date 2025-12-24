@@ -2,7 +2,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 
-namespace LiteMonitor.src.System
+namespace LiteMonitor.src.SystemServices
 {
     /// <summary>
     /// 自启动管理（通过系统自带 schtasks.exe 创建计划任务）

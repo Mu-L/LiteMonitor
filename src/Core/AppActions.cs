@@ -2,7 +2,7 @@ using System;
 using System.Drawing;
 using System.Windows.Forms;
 using LiteMonitor.src.UI;
-using LiteMonitor.src.System;
+using LiteMonitor.src.SystemServices;
 
 namespace LiteMonitor.src.Core
 {
@@ -137,10 +137,8 @@ namespace LiteMonitor.src.Core
         
         public static void ApplyTaskbarStyle(Settings cfg, UIController? ui)
         {
-            // 任务栏样式改变通常不需要完全重载主题，只要刷新 TaskbarForm 即可
-            // 某些样式（如字体大小计算）可能依赖 ApplyTheme，为了保险也可以调 ApplyTheme
-            // 这里为了轻量化，只刷新任务栏窗口，若有问题可改为 ApplyThemeAndLayout
-           
+            // 1. 刷新所有任务栏窗口
+            // 这一步会触发 TaskbarForm.ReloadLayout()，进而自动读取 cfg 中的新颜色和穿透设置
             ReloadTaskbarWindows();
             
             // 如果样式影响了主程序计算（极少情况），可解开下面注释

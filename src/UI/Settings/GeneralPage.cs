@@ -5,7 +5,7 @@ using System.Linq; // 引入 Linq
 using System.Windows.Forms;
 using LiteMonitor.src.Core;
 using LiteMonitor.src.UI.Controls;
-using LiteMonitor.src.System;
+using LiteMonitor.src.SystemServices;
 
 namespace LiteMonitor.src.UI.SettingsPage
 {

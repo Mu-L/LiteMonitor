@@ -22,6 +22,15 @@ namespace LiteMonitor.src.UI.SettingsPage
         private LiteComboBox _cmbTaskbarStyle;
         private LiteComboBox _cmbTaskbarAlign;
 
+       // 定义控件
+        private LiteCheck _chkTaskbarCustom;
+        private LiteCheck _chkTaskbarClickThrough;
+        // 使用新封装的组合控件
+        private LiteColorInput _inColorLabel;
+        private LiteColorInput _inColorSafe;
+        private LiteColorInput _inColorWarn;
+        private LiteColorInput _inColorCrit;
+        private LiteColorInput _inColorBg;
         public AppearancePage()
         {
             this.BackColor = UIColors.MainBg;
@@ -108,10 +117,38 @@ namespace LiteMonitor.src.UI.SettingsPage
             _cmbTaskbarAlign.Items.Add(LanguageManager.T("Menu.TaskbarAlignLeft"));
             
             _cmbTaskbarAlign.SelectedIndex = Config.TaskbarAlignLeft ? 1 : 0;
-            
-            // 使用现有Key: Menu.TaskbarAlign (显示方向)
+             // 使用现有Key: Menu.TaskbarAlign (显示方向)
             group.AddItem(new LiteSettingsItem(LanguageManager.T("Menu.TaskbarAlign"), _cmbTaskbarAlign));
 
+            // 3. 鼠标穿透开关
+            _chkTaskbarClickThrough = new LiteCheck(Config.TaskbarClickThrough, LanguageManager.T("Menu.Enable"));
+            group.AddItem(new LiteSettingsItem(LanguageManager.T("Menu.ClickThrough"), _chkTaskbarClickThrough));
+
+            // 1. 自定义开关
+            _chkTaskbarCustom = new LiteCheck(Config.TaskbarCustomStyle, LanguageManager.T("Menu.Enable"));
+            group.AddItem(new LiteSettingsItem(LanguageManager.T("Menu.CustomColors"), _chkTaskbarCustom));
+
+            // 插入分隔提示
+            group.AddFullItem(new LiteNote("Advanced Customization", 0));
+
+            // 2. 颜色设置 (直接使用 LiteSettingsItem + LiteColorInput)
+            // 这样会自动双列排布，对齐完美
+            _inColorLabel = new LiteColorInput(Config.TaskbarColorLabel);
+            group.AddItem(new LiteSettingsItem(LanguageManager.T("Menu.LabelColor"), _inColorLabel));
+
+            _inColorSafe = new LiteColorInput(Config.TaskbarColorSafe);
+            group.AddItem(new LiteSettingsItem(LanguageManager.T("Menu.ValueSafeColor"), _inColorSafe));
+
+            _inColorWarn = new LiteColorInput(Config.TaskbarColorWarn);
+            group.AddItem(new LiteSettingsItem(LanguageManager.T("Menu.ValueWarnColor"), _inColorWarn));
+
+            _inColorCrit = new LiteColorInput(Config.TaskbarColorCrit);
+            group.AddItem(new LiteSettingsItem(LanguageManager.T("Menu.ValueCritColor"), _inColorCrit));
+
+             _inColorBg = new LiteColorInput(Config.TaskbarColorBg);
+            group.AddItem(new LiteSettingsItem(LanguageManager.T("Menu.BackgroundColor"), _inColorBg));
+
+            
 
             // ★★★ 修改处：使用 LiteNote 替换 Label ★★★
             // 解决了 "离分割线太近" (LiteNote内部有Y偏移) 和 "下方留白过多" (LiteNote高度固定32)
@@ -120,7 +157,6 @@ namespace LiteMonitor.src.UI.SettingsPage
 
             AddGroupToPage(group);
         }
-        
         private void AddGroupToPage(LiteSettingsGroup group)
         {
             var wrapper = new Panel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(0, 0, 0, 20) };
@@ -164,6 +200,17 @@ namespace LiteMonitor.src.UI.SettingsPage
 
             // 任务栏对齐 (根据索引判断: 0=Right, 1=Left)
             Config.TaskbarAlignLeft = (_cmbTaskbarAlign.SelectedIndex == 1);
+
+            // ★★★ [新增] 保存自定义设置 ★★★
+            Config.TaskbarCustomStyle = _chkTaskbarCustom.Checked;
+            Config.TaskbarClickThrough = _chkTaskbarClickThrough.Checked;
+            
+            // 保存颜色
+            Config.TaskbarColorLabel = _inColorLabel.HexValue;
+            Config.TaskbarColorSafe = _inColorSafe.HexValue;
+            Config.TaskbarColorWarn = _inColorWarn.HexValue;
+            Config.TaskbarColorCrit = _inColorCrit.HexValue;
+            Config.TaskbarColorBg = _inColorBg.HexValue;
 
 
             // === 2. 执行动作 (调用 AppActions) ===

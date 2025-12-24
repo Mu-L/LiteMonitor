@@ -30,6 +30,10 @@ namespace LiteMonitor
         private static readonly Color WARN_DARK = Color.FromArgb(0xFF, 0xD6, 0x66);
         private static readonly Color CRIT_DARK = Color.FromArgb(0xFF, 0x66, 0x66);
 
+        // ★★★ [新增] 自定义颜色缓存 ★★★
+        private static bool _useCustom = false;
+        private static Color _cLabel, _cSafe, _cWarn, _cCrit;
+
         // ★★★ [新增] 极简的核心：手动刷新缓存 ★★★
         // 在 UIController 初始化或配置变更时调用它
         public static void ReloadStyle(Settings cfg)
@@ -40,6 +44,21 @@ namespace LiteMonitor
             // 2. 创建新字体 (使用传入的最新 cfg)
             var style = cfg.TaskbarFontBold ? FontStyle.Bold : FontStyle.Regular;
             _cachedFont = new Font(cfg.TaskbarFontFamily, cfg.TaskbarFontSize, style);
+
+            // ★★★ [新增] 读取自定义颜色配置 ★★★
+            _useCustom = cfg.TaskbarCustomStyle;
+            if (_useCustom)
+            {
+                try {
+                    _cLabel = ColorTranslator.FromHtml(cfg.TaskbarColorLabel);
+                    _cSafe = ColorTranslator.FromHtml(cfg.TaskbarColorSafe);
+                    _cWarn = ColorTranslator.FromHtml(cfg.TaskbarColorWarn);
+                    _cCrit = ColorTranslator.FromHtml(cfg.TaskbarColorCrit);
+                } catch {
+                    // 容错：如果解析失败，回退到默认
+                    _useCustom = false; 
+                }
+            }
         }
 
         public static void Render(Graphics g, List<Column> cols, bool light) // <--- 新的
@@ -76,9 +95,21 @@ namespace LiteMonitor
             // 直接使用缓存的字体，不再 new Font
             Font font = _cachedFont!;
 
-            Color labelColor = light ? LABEL_LIGHT : LABEL_DARK;
-            Color valueColor = PickColor(item.Key, item.DisplayValue, light);
+            Color labelColor, valueColor;
 
+            // ★★★ [修改] 颜色选择逻辑 ★★★
+            if (_useCustom)
+            {
+                // 自定义模式：忽略系统明暗，强制使用自定义色
+                labelColor = _cLabel;
+                valueColor = PickCustomColor(item.Key, item.DisplayValue);
+            }
+            else
+            {
+                // 原有模式
+                labelColor = light ? LABEL_LIGHT : LABEL_DARK;
+                valueColor = PickColor(item.Key, item.DisplayValue, light);
+            }
             // Label 左对齐
             TextRenderer.DrawText(
                 g, label, font, rc, labelColor,
@@ -97,7 +128,15 @@ namespace LiteMonitor
                 TextFormatFlags.NoClipping
             );
         }
-
+        // ★★★ [新增] 自定义颜色提取逻辑 ★★★
+        private static Color PickCustomColor(string key, double v)
+        {
+            if (double.IsNaN(v)) return _cLabel;
+            int result = UIUtils.GetColorResult(key, v);
+            if (result == 2) return _cCrit;
+            if (result == 1) return _cWarn;
+            return _cSafe;
+        }
         private static Color PickColor(string key, double v, bool light)
         {
             if (double.IsNaN(v)) return light ? LABEL_LIGHT : LABEL_DARK;
