@@ -121,7 +121,7 @@ namespace LiteMonitor.src.UI
             _pnlNavContainer.Controls.Add(btn);
         }
 
-        private void SwitchPage(string key)
+        public void SwitchPage(string key)
         {
             if (_currentKey == key) return;
             _currentKey = key;

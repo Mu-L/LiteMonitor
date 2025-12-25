@@ -271,12 +271,19 @@ namespace LiteMonitor
 
                 if (MessageBox.Show(msg, "LiteMonitor Setup", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
                 {
-                    // 打开设置窗口
-                    var f = new ThresholdForm(cfg);
-                    if (f.ShowDialog() == DialogResult.OK)
+                    try
                     {
-                        // 阈值设置完成后，也需要刷新布局
-                        AppActions.ApplyMonitorLayout(ui, form);
+                        // 打开设置窗口
+                        using (var f = new LiteMonitor.src.UI.SettingsForm(cfg, ui, form))
+                        {
+                            f.SwitchPage("System"); 
+
+                            f.ShowDialog(form);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show("设置面板启动失败: " + ex.Message);
                     }
                 }
             }
