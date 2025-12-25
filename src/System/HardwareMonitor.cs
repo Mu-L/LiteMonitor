@@ -31,20 +31,24 @@ namespace LiteMonitor.src.SystemServices
         private DateTime _startTime = DateTime.Now;      // 启动时间
         
         private DateTime _lastSlowScan = DateTime.Now;   //  初始值为 Now，强迫程序启动时先等 3 秒再进行慢速全盘扫描，防止卡顿
-        private DateTime _lastNativeMatchAttempt = DateTime.MinValue; // 上次尝试匹配原生网络适配器的时间
+        
        // --- 流量统计专用字段 ---
         private DateTime _lastTrafficTime = DateTime.Now; // 积分时间戳
         private DateTime _lastTrafficSave = DateTime.Now; // 自动保存时间戳
 
-        // 原生网络对象缓存
-        private NetworkInterface? _nativeNetAdapter;
-        private long _lastNativeUpload = 0;
-        private long _lastNativeDownload = 0;
-
-        // 1. 新增缓存字段
-        private ISensor? _cachedUpSensor;
-        private ISensor? _cachedDownSensor;
-        private IHardware? _lastAccumulatedHw; // 记录上次是用哪个硬件缓存的
+        // ★★★ [修复] 状态隔离：每个硬件拥有独立的网络状态，不再全局共享 ★★★
+        private class NetworkState
+        {
+            public NetworkInterface? NativeAdapter;
+            public long LastNativeUpload;
+            public long LastNativeDownload;
+            public DateTime LastMatchAttempt = DateTime.MinValue;
+            
+            // 缓存 LHM 传感器
+            public ISensor? CachedUpSensor;
+            public ISensor? CachedDownSensor;
+        }
+        private readonly Dictionary<IHardware, NetworkState> _netStates = new();
 
         // =======================================================================
         // [缓存] 高性能读取缓存 (避免 LINQ)
@@ -202,12 +206,13 @@ namespace LiteMonitor.src.SystemServices
         }
 
        // [修复版] 智能匹配 (支持 "以太网" 这种连接名)
-        private void MatchNativeNetworkAdapter(string lhmName)
+       // ★★★ [修复] 增加 state 参数，只操作当前硬件的状态
+        private void MatchNativeNetworkAdapter(string lhmName, NetworkState state)
         {
-            if (_nativeNetAdapter != null) return;
+            if (state.NativeAdapter != null) return;
             // 限制匹配频率，避免频繁调用 (10秒内仅匹配一次)
-            if ((DateTime.Now - _lastNativeMatchAttempt).TotalSeconds < 10) return;
-            _lastNativeMatchAttempt = DateTime.Now;
+            if ((DateTime.Now - state.LastMatchAttempt).TotalSeconds < 10) return;
+            state.LastMatchAttempt = DateTime.Now;
 
             try
             {
@@ -222,7 +227,7 @@ namespace LiteMonitor.src.SystemServices
                     // 如果 LHM 返回的是 "以太网"，而 nic.Name 也是 "以太网"，直接命中！
                     if (nic.Name.Equals(lhmName, StringComparison.OrdinalIgnoreCase))
                     {
-                        SetNativeAdapter(nic);
+                        SetNativeAdapter(nic, state);
                         Debug.WriteLine($"[匹配成功] 策略:连接名 | LHM:{lhmName} == Native:{nic.Name}");
                         return;
                     }
@@ -232,7 +237,7 @@ namespace LiteMonitor.src.SystemServices
                     // -------------------------------------------------------
                     if (nic.Description.Equals(lhmName, StringComparison.OrdinalIgnoreCase))
                     {
-                        SetNativeAdapter(nic);
+                        SetNativeAdapter(nic, state);
                         Debug.WriteLine($"[匹配成功] 策略:硬件名 | LHM:{lhmName} == Native:{nic.Description}");
                         return;
                     }
@@ -248,14 +253,14 @@ namespace LiteMonitor.src.SystemServices
                         
                         if (matchCount > 2 && (double)matchCount / lhmTokens.Count > 0.6)
                         {
-                            SetNativeAdapter(nic);
+                            SetNativeAdapter(nic, state);
                             Debug.WriteLine($"[匹配成功] 策略:模糊 | LHM:{lhmName} ≈ Native:{nic.Description}");
                             return;
                         }
                     }
                 }
             }
-            catch { _nativeNetAdapter = null; }
+            catch { state.NativeAdapter = null; }
         }
 
         // 分词辅助
@@ -264,73 +269,84 @@ namespace LiteMonitor.src.SystemServices
             return input.Split(new[] { ' ', '(', ')', '[', ']', '-', '_', '#' }, StringSplitOptions.RemoveEmptyEntries).ToList();
         }
 
-        private void SetNativeAdapter(NetworkInterface nic)
+        // ★★★ [修复] 增加 state 参数
+        private void SetNativeAdapter(NetworkInterface nic, NetworkState state)
         {
-            _nativeNetAdapter = nic;
-            // 初始化基准值
-            var stats = nic.GetIPStatistics();
-            _lastNativeUpload = stats.BytesSent;
-            _lastNativeDownload = stats.BytesReceived;
+            state.NativeAdapter = nic;
+            // 初始化基准值，防止首次匹配时产生巨大增量
+            try
+            {
+                var stats = nic.GetIPStatistics();
+                state.LastNativeUpload = stats.BytesSent;
+                state.LastNativeDownload = stats.BytesReceived;
+            }
+            catch
+            {
+                state.NativeAdapter = null;
+            }
         }
 
         // [终极版] 智能流量累加 (原生精准 + LHM保底)
+        // ★★★ [修复] 重写逻辑，使用 NetworkState
         private void AccumulateTraffic(IHardware hw, double seconds)
         {
+            // 1. 获取或创建当前硬件的独立状态
+            if (!_netStates.TryGetValue(hw, out var state))
+            {
+                state = new NetworkState();
+                _netStates[hw] = state;
+            }
+
             long finalUp = 0;
             long finalDown = 0;
 
             // -----------------------------------------------------
             // A. 先算一个 LHM 的估算值 (作为保底/校验)
             // -----------------------------------------------------
-            // 如果切换了网卡，重置缓存
-            if (hw != _lastAccumulatedHw)
+            // 如果还没缓存传感器，先找一下
+            if (state.CachedUpSensor == null || state.CachedDownSensor == null)
             {
-                _cachedUpSensor = null;
-                _cachedDownSensor = null;
-                _lastAccumulatedHw = hw;
-                
-                // 只有第一次需要遍历查找
                 foreach (var s in hw.Sensors)
                 {
                     if (s.SensorType != SensorType.Throughput) continue;
-                    if (_upKW.Any(k => Has(s.Name, k))) _cachedUpSensor ??= s;
-                    if (_downKW.Any(k => Has(s.Name, k))) _cachedDownSensor ??= s;
+                    if (_upKW.Any(k => Has(s.Name, k))) state.CachedUpSensor ??= s;
+                    if (_downKW.Any(k => Has(s.Name, k))) state.CachedDownSensor ??= s;
                 }
             }
 
             // ★★★ 直接使用缓存对象，跳过循环和字符串匹配 ★★★
-            long lhmUpDelta = (long)((_cachedUpSensor?.Value ?? 0) * seconds);
-            long lhmDownDelta = (long)((_cachedDownSensor?.Value ?? 0) * seconds);
+            long lhmUpDelta = (long)((state.CachedUpSensor?.Value ?? 0) * seconds);
+            long lhmDownDelta = (long)((state.CachedDownSensor?.Value ?? 0) * seconds);
 
             // -----------------------------------------------------
             // B. 尝试获取 原生精准值
             // -----------------------------------------------------
-            MatchNativeNetworkAdapter(hw.Name);
+            MatchNativeNetworkAdapter(hw.Name, state);
             
             bool nativeValid = false;
             long nativeUpDelta = 0;
             long nativeDownDelta = 0;
 
-            if (_nativeNetAdapter != null)
+            if (state.NativeAdapter != null)
             {
                 try
                 {
                     // 使用 GetIPStatistics 以支持 IPv6
-                    var stats = _nativeNetAdapter.GetIPStatistics();
+                    var stats = state.NativeAdapter.GetIPStatistics();
                     long currUp = stats.BytesSent;
                     long currDown = stats.BytesReceived;
 
                     // 计算增量 (处理溢出或重置)
-                    if (currUp >= _lastNativeUpload) nativeUpDelta = currUp - _lastNativeUpload;
-                    if (currDown >= _lastNativeDownload) nativeDownDelta = currDown - _lastNativeDownload;
+                    if (currUp >= state.LastNativeUpload) nativeUpDelta = currUp - state.LastNativeUpload;
+                    if (currDown >= state.LastNativeDownload) nativeDownDelta = currDown - state.LastNativeDownload;
 
-                    _lastNativeUpload = currUp;
-                    _lastNativeDownload = currDown;
+                    state.LastNativeUpload = currUp;
+                    state.LastNativeDownload = currDown;
                     nativeValid = true;
                 }
                 catch 
                 {
-                    _nativeNetAdapter = null; // 读失败了，扔掉
+                    state.NativeAdapter = null; // 读失败了，扔掉
                 }
             }
 
@@ -349,7 +365,7 @@ namespace LiteMonitor.src.SystemServices
                     finalDown = lhmDownDelta;
                     
                     // 既然匹配错了，就清空，下次重新找
-                    _nativeNetAdapter = null; 
+                    state.NativeAdapter = null; 
                 }
                 else
                 {
@@ -368,6 +384,10 @@ namespace LiteMonitor.src.SystemServices
             // -----------------------------------------------------
             // D. 存入数据
             // -----------------------------------------------------
+            // ★★★ [新增] 安全阀：单次增量超过 10GB (10737418240 字节) 视为异常丢弃 ★★★
+            // 防止基准值错位导致统计爆炸
+            if (finalUp > 10737418240L || finalDown > 10737418240L) return;
+
             if (finalUp > 0 || finalDown > 0)
             {
                 _cfg.SessionUploadBytes += finalUp;
