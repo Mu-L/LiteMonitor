@@ -46,6 +46,7 @@ namespace LiteMonitor.src.UI.SettingsPage
 
             // === 2. 硬件负载 ===
             var grpHardware = new LiteSettingsGroup(LanguageManager.T("Menu.GeneralHardware"));
+            grpHardware.AddFullItem(new LiteNote(LanguageManager.T("Menu.ThresholdsTips"), 0));
             
             AddDoubleThresholdRow(grpHardware, LanguageManager.T("Menu.HardwareLoad"), "%", Config.Thresholds.Load);
             AddDoubleThresholdRow(grpHardware, LanguageManager.T("Menu.HardwareTemp"), "°C", Config.Thresholds.Temp);

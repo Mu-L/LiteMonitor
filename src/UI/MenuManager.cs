@@ -254,7 +254,7 @@ namespace LiteMonitor
             // 2. 显示监控项 (动态生成)
             // ==================================================================================
 
-            var grpShow = new ToolStripMenuItem(LanguageManager.T("Menu.ShowItems"));
+            var grpShow = new ToolStripMenuItem(LanguageManager.T("Menu.MonitorItemDisplay"));
             menu.Items.Add(grpShow);
 
             // --- 内部辅助函数：最大值引导提示 (保留 UI 交互逻辑) ---

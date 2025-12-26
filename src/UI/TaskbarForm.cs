@@ -233,7 +233,7 @@ namespace LiteMonitor
             return false;
         }
 
-       private void CheckTheme(bool force = false)
+        private void CheckTheme(bool force = false)
         {
             bool isLight = IsSystemLightTheme();
 
@@ -245,21 +245,43 @@ namespace LiteMonitor
             // ★★★ [修改] 背景色逻辑 ★★★
             if (_cfg.TaskbarCustomStyle)
             {
-                // 自定义模式：使用用户指定的背景色作为透明键
-                try {
-                    _transparentKey = ColorTranslator.FromHtml(_cfg.TaskbarColorBg);
-                } catch {
+                // 自定义模式
+                try 
+                {
+                    Color customColor = ColorTranslator.FromHtml(_cfg.TaskbarColorBg);
+                    
+                    // 【核心修复】：如果 R=G=B (纯灰色)，会导致鼠标穿透问题
+                    // 解决方案：给 B 通道强制 +1 或 -1，使其不再是纯灰
+                    if (customColor.R == customColor.G && customColor.G == customColor.B)
+                    {
+                        int r = customColor.R;
+                        int g = customColor.G;
+                        int b = customColor.B;
+
+                        // 偏移 B 值
+                        if (b >= 255) b = 254; else b += 1;
+                        
+                        _transparentKey = Color.FromArgb(r, g, b);
+                    }
+                    else
+                    {
+                        // 如果本来就不是纯灰（比如 #858586），直接用
+                        _transparentKey = customColor;
+                    }
+                } 
+                catch 
+                {
                     _transparentKey = Color.Black; 
                 }
             }
             else
             {
-                // 原有模式
-                if (isLight) _transparentKey = Color.FromArgb(210, 210, 210);
-                else _transparentKey = Color.Black;
+                // 原有模式 (这里本来就是 R=G!=B，所以一直没问题)
+                if (isLight) _transparentKey = Color.FromArgb(210, 210, 211); // 240!=241
+                else _transparentKey = Color.FromArgb(40, 40, 41);       // 40!=41
             }
 
-            // 更新 WinForms 属性
+            // 更新 WinForms 属性 (让背景色完全等于 Key，保持视觉一致)
             BackColor = _transparentKey;
 
             // 更新 API 属性 (如果句柄已创建)
@@ -267,6 +289,9 @@ namespace LiteMonitor
             {
                 ApplyLayeredAttribute();
             }
+            
+            // 建议强制重绘一下，确保颜色更新立即反映
+            Invalidate();
         }
 
         // 2. 添加鼠标穿透控制方法

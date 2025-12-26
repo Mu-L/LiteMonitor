@@ -92,12 +92,6 @@ namespace LiteMonitor.src.UI.SettingsPage
                 () => Config.PanelWidth + " px",
                 s => Config.PanelWidth = UIUtils.ParseInt(s));
 
-            // 4. 缩放
-            double[] scales = { 0.5, 0.75, 0.9, 1.0, 1.25, 1.5, 1.75, 2.0 };
-            AddCombo(group, "Menu.Scale",
-                scales.Select(s => (s * 100) + "%"),
-                () => (Config.UIScale * 100) + "%",
-                s => Config.UIScale = UIUtils.ParseDouble(s) / 100.0);
 
             // 5. 透明度
             double[] opacities = { 1.0, 0.95, 0.9, 0.85, 0.8, 0.75, 0.7, 0.6, 0.5, 0.4, 0.3 };
@@ -114,6 +108,14 @@ namespace LiteMonitor.src.UI.SettingsPage
                 () => Config.MemoryDisplayMode, // Getter
                 idx => Config.MemoryDisplayMode = idx // Setter
             );
+
+            // 4. 缩放
+            double[] scales = { 0.5, 0.75, 0.9, 1.0, 1.25, 1.5, 1.75, 2.0 };
+            AddCombo(group, "Menu.Scale",
+                scales.Select(s => (s * 100) + "%"),
+                () => (Config.UIScale * 100) + "%",
+                s => Config.UIScale = UIUtils.ParseDouble(s) / 100.0);
+                
             group.AddFullItem(new LiteNote(LanguageManager.T("Menu.MemoryDisplayModeTip"), 0));
 
             AddGroupToPage(group);

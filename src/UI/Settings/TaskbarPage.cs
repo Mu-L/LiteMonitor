@@ -77,7 +77,7 @@ namespace LiteMonitor.src.UI.SettingsPage
             var group = new LiteSettingsGroup(LanguageManager.T("Menu.TaskbarCustomColors"));
             _customColorInputs.Clear();
 
-            // 1. 自定义开关 (控制下方 Enabled)
+            // 1. 【第一行-左侧】自定义开关 (AddBool 内部会调用 AddItem 占用左边一格)
             AddBool(group, "Menu.TaskbarCustomColors", 
                 () => Config.TaskbarCustomStyle, 
                 v => Config.TaskbarCustomStyle = v,
@@ -85,15 +85,66 @@ namespace LiteMonitor.src.UI.SettingsPage
                     foreach(var c in _customColorInputs) c.Enabled = chk.Checked;
                 }
             );
-            
+
+            // 2. 【第一行-右侧】屏幕取色工具 (AddItem 会自动填到右边那一格)
+            var tbResult = new LiteUnderlineInput("#000000", "", "", 65, null, HorizontalAlignment.Center);
+            tbResult.Inner.ReadOnly = true; 
+            var btnPick = new LiteSortBtn("🖌"); 
+            btnPick.Location = new Point(70, 1);
+
+            btnPick.Click += (s, e) => {
+                using (Form f = new Form { FormBorderStyle = FormBorderStyle.None, WindowState = FormWindowState.Maximized, TopMost = true, Cursor = Cursors.Cross })
+                {
+                    Bitmap bmp = new Bitmap(Screen.PrimaryScreen.Bounds.Width, Screen.PrimaryScreen.Bounds.Height);
+                    using (Graphics g = Graphics.FromImage(bmp)) g.CopyFromScreen(0, 0, 0, 0, bmp.Size);
+                    f.BackgroundImage = bmp;
+                    f.MouseClick += (ms, me) => {
+                        Color c = bmp.GetPixel(me.X, me.Y);
+                        string hex = $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+                        tbResult.Inner.Text = hex;
+                        f.Close();
+
+                        // 弹出询问：使用国际化函数
+                        string confirmMsg = string.Format("{0} {1}?", LanguageManager.T("Menu.ScreenColorPickerTip"), hex);
+                        if (MessageBox.Show(confirmMsg, "LiteMonitor", MessageBoxButtons.YesNo) == DialogResult.Yes)
+                        {
+                            // 1. 更新物理配置
+                            Config.TaskbarColorBg = hex;
+
+                            // 2. 联动更新 UI (遍历已有的颜色输入框找到背景色那一项)
+                            foreach (var control in _customColorInputs)
+                            {
+                                if (control is LiteColorInput ci && ci.Input.Inner.Tag?.ToString() == "Menu.BackgroundColor")
+                                {
+                                    ci.HexValue = hex; // 这会触发 UI 上的色块和文字同时更新
+                                    break;
+                                }
+                            }
+                        }
+                    };
+                    f.ShowDialog();
+                }
+            };
+
+            Panel toolCtrl = new Panel { Size = new Size(96, 26) };
+            toolCtrl.Controls.Add(tbResult);
+            toolCtrl.Controls.Add(btnPick);
+            group.AddItem(new LiteSettingsItem(LanguageManager.T("Menu.ScreenColorPicker"), toolCtrl));
+
+            // 3. 【第二行】说明文案 (占满一整行)
             group.AddFullItem(new LiteNote(LanguageManager.T("Menu.TaskbarCustomTip"), 0));
 
-            // 2. 批量添加颜色
+            // 4. 【后续行】批量添加颜色列表
             void AddC(string key, Func<string> get, Action<string> set)
             {
-                // 使用工厂方法
                 var input = AddColor(group, key, get, set, Config.TaskbarCustomStyle);
                 _customColorInputs.Add(input);
+                
+                // 为了方便上面的取色器联动，我们在创建时给 Inner 增加一个标记
+                if (input is LiteColorInput lci)
+                {
+                    lci.Input.Inner.Tag = key;
+                }
             }
 
             AddC("Menu.LabelColor",      () => Config.TaskbarColorLabel, v => Config.TaskbarColorLabel = v);
@@ -104,7 +155,6 @@ namespace LiteMonitor.src.UI.SettingsPage
 
             AddGroupToPage(group);
         }
-
         private void AddGroupToPage(LiteSettingsGroup group)
         {
             var wrapper = new Panel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(0, 0, 0, 20) };

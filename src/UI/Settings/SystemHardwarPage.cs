@@ -97,13 +97,13 @@ namespace LiteMonitor.src.UI.SettingsPage
                 // 实际上我们可以在工厂里加个重载，但为了不改太多，这里手动修正一下 Parent 的 Label
                 if(input.Parent.Controls[0] is Label lbl) lbl.Text = title;
             }
-
+            group.AddFullItem(new LiteNote(LanguageManager.T("Menu.CalibrationTip"), 0));
             AddCalib("Items.CPU.Power", "W",   () => Config.RecordedMaxCpuPower, v => Config.RecordedMaxCpuPower = v);
             AddCalib("Items.CPU.Clock", "MHz", () => Config.RecordedMaxCpuClock, v => Config.RecordedMaxCpuClock = v);
             AddCalib("Items.GPU.Power", "W",   () => Config.RecordedMaxGpuPower, v => Config.RecordedMaxGpuPower = v);
             AddCalib("Items.GPU.Clock", "MHz", () => Config.RecordedMaxGpuClock, v => Config.RecordedMaxGpuClock = v);
 
-            group.AddFullItem(new LiteNote(LanguageManager.T("Menu.CalibrationTip"), 0));
+            
             AddGroupToPage(group);
         }
 
@@ -129,7 +129,7 @@ namespace LiteMonitor.src.UI.SettingsPage
             );
 
             AddBool(group, "Menu.UseSystemCpuLoad", () => Config.UseSystemCpuLoad, v => Config.UseSystemCpuLoad = v);
-
+            
             // 3. 刷新率
             int[] rates = { 100, 200, 300, 500, 600, 700, 800, 1000, 1500, 2000, 3000 };
             AddCombo(group, "Menu.Refresh", rates.Select(r => r + " ms"),
@@ -139,7 +139,8 @@ namespace LiteMonitor.src.UI.SettingsPage
                     Config.RefreshMs = val < 50 ? 1000 : val;
                 }
             );
-
+            group.AddFullItem(new LiteNote(LanguageManager.T("Menu.UseSystemCpuLoadTip"), 0));
+            
             AddGroupToPage(group);
         }
 

@@ -57,7 +57,6 @@
     "SpeedTest": "网速测试",
     "Traffic": "历史流量统计",
     "ThemeEditor": "主题编辑器",
-    "ShowItems": "显示监控项",
 
     "__Comment_Page1__": "--- 1. 主界面设置 (MainPanelPage) ---",
     "MainFormSettings": "主界面设置",
@@ -78,7 +77,7 @@
     "MemoryDisplayMode": "内存/显存显示",
     "Percent": "百分比",
     "UsedSize": "已用容量",
-    "MemoryDisplayModeTip": "⚠️说明：内存显存显示模式修改后在所有地方生效",
+    "MemoryDisplayModeTip": "⚠️说明：内存/显存显示模式修改后在所有地方生效",
 
     "__Comment_Page2__": "--- 2. 任务栏设置 (TaskbarPage) ---",
     "TaskbarSettings": "任务栏设置",
@@ -92,20 +91,22 @@
     "TaskbarAlignTip": "⚠️显示位置说明：仅在windows11下任务栏为居中对齐时，可设置显示在任务栏左侧",
 
     "TaskbarCustomColors": "自定义任务栏颜色",
-    "TaskbarCustomTip": "⚠️自定义颜色仅在启用后可设置，字体背景色请设为最接近系统任务栏的颜色，否则可能出现花字",
+    "TaskbarCustomTip": "⚠️注意：自定义颜色仅在启用后可设置，字体背景色请吸取系统任务栏的颜色，否则可能出现花字",
     "LabelColor": "监控项名称",
     "ValueSafeColor": "正常数值",
     "ValueWarnColor": "告警数值",
     "ValueCritColor": "严重数值",
     "BackgroundColor": "字体背景色",
+    "ScreenColorPicker": "屏幕取色工具",
+    "ScreenColorPickerTip": "是否将字体背景颜色设为：",
 
     "__Comment_Page3__": "--- 3. 监控项显示 (MonitorPage) ---",
     "MonitorItemDisplay": "监控项显示",
     "MonitorItem": "监控项",
     "name": "名称",
     "short": "简称",
-    "showHide": "显示/隐藏",
-    "sort": "排序",
+    "showHide": "显示 / 隐藏",
+    "sort": "显示顺序",
     "Taskbar": "任务栏",
     "MainForm": "主界面",
 
@@ -113,9 +114,11 @@
     "Thresholds": "告警阈值设置",
     "AlertTemp": "高温报警弹窗",
     "AlertThreshold": "高温报警阈值",
-
+    
+    "ThresholdsTips": "⚠️进度条和数值将根据硬件阈值显示对应的颜色",
     "GeneralHardware": "通用硬件",
     "HardwareLoad": "硬件负载",
+    
     "HardwareTemp": "硬件温度",
 
     "NetworkDiskSpeed": "网络与磁盘速率",
@@ -134,14 +137,15 @@
     "HideTrayIcon": "隐藏托盘图标",
 
     "Calibration": "硬件参数校准",
-    "MaxLimits": "最大上限",
-    "CalibrationTip": "⚠️为了进度条显示更准确，请填写硬件实际的最大频率和功耗，不填将在高负载时自动学习并更新数据",
+    "MaxLimits": "最大值",
+    "CalibrationTip": "⚠️为了进度条显示更准确，请填写硬件实际的最大频率和功耗，不填将在高负载时自动学习并更新最大值",
 
     "HardwareSettings": "硬件设置",
     "DiskSource": "首选磁盘",
     "NetworkSource": "首选网卡",
     "Auto": "自动模式",
     "UseSystemCpuLoad": "使用系统CPU负载算法",
+    "UseSystemCpuLoadTip": "⚠️系统CPU负载算法：如CPU使用率不准时可开启，开启后采用任务管理器算法，生效需要10秒左右",
     "Refresh": "刷新频率"
   }
 }

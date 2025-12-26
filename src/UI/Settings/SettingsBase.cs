@@ -91,7 +91,7 @@ namespace LiteMonitor.src.UI.SettingsPage
         /// <summary>
         /// 快速添加：数字输入 (Double/Float)
         /// </summary>
-        protected LiteNumberInput AddNumberDouble(LiteSettingsGroup group, string titleKey, string unit, Func<double> get, Action<double> set, int width = 60)
+        protected LiteNumberInput AddNumberDouble(LiteSettingsGroup group, string titleKey, string unit, Func<double> get, Action<double> set, int width = 70)
         {
             var input = new LiteNumberInput("0", unit, "", width);
             BindDouble(input, get, set);
