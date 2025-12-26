@@ -66,6 +66,12 @@
     "ClampToScreen": "Adherir borde",
     "AutoHide": "Ocultar auto",
     "ClickThrough": "Transparencia click",
+    "DoubleClickAction": "Doble click",
+    "ActionSwitchLayout": "Cambiar layout",
+    "ActionToggleVisible": "Panel on/off",
+    "ActionTaskMgr": "Administrador",
+    "ActionSettings": "Ajustes",
+    "ActionTrafficHistory": "Historial datos",
 
     "Appearance": "Apariencia",
     "Theme": "Tema",
@@ -83,16 +89,21 @@
     "__Comment_Page2__": "--- 2. Taskbar ---",
     "TaskbarSettings": "Barra Tareas",
     "TaskbarShow": "Mostrar",
+    "TaskbarSingleLine": "Una línea",
     "TaskbarStyle": "Estilo",
+    "TaskbarMonitor": "Pantalla",
     "TaskbarStyleBold": "Grande",
     "TaskbarStyleRegular": "Pequeño",
     "TaskbarAlign": "Posición",
     "TaskbarAlignRight": "Derecha",
     "TaskbarAlignLeft": "Izquierda",
-    "TaskbarAlignTip": "⚠️Izquierda solo funciona si la barra de Win11 está centrada.",
+    "TaskbarOffset": "Offset",
+    "TaskbarAlignTip": "⚠️Izquierda si barra Win11 centrada. Offset: 10px -20px",
 
     "TaskbarCustomColors": "Colores",
     "TaskbarCustomTip": "⚠️El fondo debe coincidir con la barra.",
+    "ScreenColorPicker": "Selector color",
+    "ScreenColorPickerTip": "Color fondo:",
     "LabelColor": "Etiqueta",
     "ValueSafeColor": "Valor",
     "ValueWarnColor": "Aviso",
@@ -111,6 +122,7 @@
 
     "__Comment_Page4__": "--- 4. Umbrales ---",
     "Thresholds": "Umbrales",
+    "ThresholdsTips": "⚠️Color barra según umbral",
     "AlertTemp": "Alerta Temp",
     "AlertThreshold": "Límite",
 
@@ -142,6 +154,7 @@
     "NetworkSource": "Red",
     "Auto": "Auto",
     "UseSystemCpuLoad": "Usar CPU Sys",
+    "UseSystemCpuLoadTip": "⚠️Algoritmo Administrador. Efecto ~10s",
     "Refresh": "Tasa"
   }
 }

@@ -66,6 +66,12 @@
     "ClampToScreen": "Am Rand",
     "AutoHide": "Auto-Hide",
     "ClickThrough": "Klick-durch",
+    "DoubleClickAction": "Doppelklick",
+    "ActionSwitchLayout": "Layout wechseln",
+    "ActionToggleVisible": "Panel an/aus",
+    "ActionTaskMgr": "Task-Manager",
+    "ActionSettings": "Einstellungen",
+    "ActionTrafficHistory": "Datenverlauf",
 
     "Appearance": "Design",
     "Theme": "Thema",
@@ -83,16 +89,21 @@
     "__Comment_Page2__": "--- 2. Taskleiste ---",
     "TaskbarSettings": "Taskleiste",
     "TaskbarShow": "Anzeigen",
+    "TaskbarSingleLine": "Einzeilig",
     "TaskbarStyle": "Stil",
+    "TaskbarMonitor": "Bildschirm",
     "TaskbarStyleBold": "Groß",
     "TaskbarStyleRegular": "Klein",
     "TaskbarAlign": "Position",
     "TaskbarAlignRight": "Rechts",
     "TaskbarAlignLeft": "Links",
-    "TaskbarAlignTip": "⚠️Links nur möglich bei zentrierter Win11 Taskleiste.",
+    "TaskbarOffset": "Offset",
+    "TaskbarAlignTip": "⚠️Links bei zentrierter Win11 Taskleiste. Offset: 10px -20px",
 
     "TaskbarCustomColors": "Farben",
     "TaskbarCustomTip": "⚠️Hintergrund passend zur Taskleiste wählen.",
+    "ScreenColorPicker": "Farbwähler",
+    "ScreenColorPickerTip": "Hintergrundfarbe setzen auf:",
     "LabelColor": "Label",
     "ValueSafeColor": "Wert",
     "ValueWarnColor": "Warnung",
@@ -111,6 +122,7 @@
 
     "__Comment_Page4__": "--- 4. Grenzwerte ---",
     "Thresholds": "Grenzwerte",
+    "ThresholdsTips": "⚠️Balkenfarbe nach Grenzwert",
     "AlertTemp": "Hitze-Alarm",
     "AlertThreshold": "Limit",
 
@@ -142,6 +154,7 @@
     "NetworkSource": "Netz",
     "Auto": "Auto",
     "UseSystemCpuLoad": "Sys CPU%",
+    "UseSystemCpuLoadTip": "⚠️Task-Manager Algorithmus. Wirkung nach ~10s",
     "Refresh": "Rate"
   }
 }

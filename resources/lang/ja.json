@@ -66,6 +66,12 @@
     "ClampToScreen": "画面端に吸着",
     "AutoHide": "自動的に隠す",
     "ClickThrough": "マウスクリック透過",
+    "DoubleClickAction": "ダブルクリック動作",
+    "ActionSwitchLayout": "縦横切り替え",
+    "ActionToggleVisible": "表示/非表示",
+    "ActionTaskMgr": "タスクマネージャー",
+    "ActionSettings": "設定パネル",
+    "ActionTrafficHistory": "通信量履歴",
 
     "Appearance": "外観設定",
     "Theme": "テーマ",
@@ -83,16 +89,21 @@
     "__Comment_Page2__": "--- 2. タスクバー ---",
     "TaskbarSettings": "タスクバー",
     "TaskbarShow": "タスクバー表示",
+    "TaskbarSingleLine": "一行表示",
     "TaskbarStyle": "スタイル",
+    "TaskbarMonitor": "モニター",
     "TaskbarStyleBold": "大文字",
     "TaskbarStyleRegular": "小文字",
     "TaskbarAlign": "表示位置",
     "TaskbarAlignRight": "右寄せ",
     "TaskbarAlignLeft": "左寄せ",
-    "TaskbarAlignTip": "⚠️左寄せはWin11でタスクバーが中央揃えの場合のみ有効。",
+    "TaskbarOffset": "左右オフセット",
+    "TaskbarAlignTip": "⚠️Win11タスクバー中央揃え時は左寄せ可能。オフセット: 10px -20px",
 
     "TaskbarCustomColors": "文字色設定",
     "TaskbarCustomTip": "⚠️背景色はタスクバーの色に合わせてください。",
+    "ScreenColorPicker": "カラーピッカー",
+    "ScreenColorPickerTip": "背景色を設定:",
     "LabelColor": "ラベル",
     "ValueSafeColor": "通常値",
     "ValueWarnColor": "警告値",
@@ -111,6 +122,7 @@
 
     "__Comment_Page4__": "--- 4. 閾値設定 ---",
     "Thresholds": "アラート閾値",
+    "ThresholdsTips": "⚠️バーと数値の色が閾値に応じて変化",
     "AlertTemp": "高温警告",
     "AlertThreshold": "警告温度",
 
@@ -142,6 +154,7 @@
     "NetworkSource": "ネットワーク",
     "Auto": "自動",
     "UseSystemCpuLoad": "システムCPU計測を使用",
+    "UseSystemCpuLoadTip": "⚠️CPU使用率が不正確な場合に有効。タスクマネージャー方式。効果は約10秒後",
     "Refresh": "更新頻度"
   }
 }

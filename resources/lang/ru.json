@@ -66,6 +66,12 @@
     "ClampToScreen": "Прилипание",
     "AutoHide": "Авто-скрытие",
     "ClickThrough": "Сквозь мышь",
+    "DoubleClickAction": "Двойной клик",
+    "ActionSwitchLayout": "Сменить вид",
+    "ActionToggleVisible": "Панель вкл/выкл",
+    "ActionTaskMgr": "Диспетчер",
+    "ActionSettings": "Настройки",
+    "ActionTrafficHistory": "История",
 
     "Appearance": "Внешний вид",
     "Theme": "Тема",
@@ -83,16 +89,21 @@
     "__Comment_Page2__": "--- 2. Taskbar ---",
     "TaskbarSettings": "Панель задач",
     "TaskbarShow": "Показывать",
+    "TaskbarSingleLine": "Одна строка",
     "TaskbarStyle": "Стиль",
+    "TaskbarMonitor": "Экран",
     "TaskbarStyleBold": "Крупно",
     "TaskbarStyleRegular": "Мелко",
     "TaskbarAlign": "Позиция",
     "TaskbarAlignRight": "Справа",
     "TaskbarAlignLeft": "Слева",
-    "TaskbarAlignTip": "⚠️Слева работает, если панель задач Win11 по центру.",
+    "TaskbarOffset": "Смещение",
+    "TaskbarAlignTip": "⚠️Слева при центре Win11. Смещение: 10px -20px",
 
     "TaskbarCustomColors": "Цвета",
     "TaskbarCustomTip": "⚠️Фон должен совпадать с панелью задач.",
+    "ScreenColorPicker": "Выбор цвета",
+    "ScreenColorPickerTip": "Цвет фона:",
     "LabelColor": "Текст",
     "ValueSafeColor": "Норма",
     "ValueWarnColor": "Внимание",
@@ -111,6 +122,7 @@
 
     "__Comment_Page4__": "--- 4. Thresholds ---",
     "Thresholds": "Пороги",
+    "ThresholdsTips": "⚠️Цвет шкалы по порогу",
     "AlertTemp": "Алерт Темп",
     "AlertThreshold": "Лимит",
 
@@ -142,6 +154,7 @@
     "NetworkSource": "Сеть",
     "Auto": "Авто",
     "UseSystemCpuLoad": "Сис. метод CPU",
+    "UseSystemCpuLoadTip": "⚠️Алгоритм Диспетчера. Эффект ~10с",
     "Refresh": "Частота"
   }
 }

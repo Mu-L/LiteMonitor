@@ -66,6 +66,12 @@
     "ClampToScreen": "Ancrer bord",
     "AutoHide": "Masquer auto",
     "ClickThrough": "Clic travers",
+    "DoubleClickAction": "Double clic",
+    "ActionSwitchLayout": "Changer layout",
+    "ActionToggleVisible": "Panel on/off",
+    "ActionTaskMgr": "Gestionnaire",
+    "ActionSettings": "Options",
+    "ActionTrafficHistory": "Historique",
 
     "Appearance": "Apparence",
     "Theme": "Thème",
@@ -83,16 +89,21 @@
     "__Comment_Page2__": "--- 2. Barre Tâches ---",
     "TaskbarSettings": "Barre Tâches",
     "TaskbarShow": "Afficher",
+    "TaskbarSingleLine": "Une ligne",
     "TaskbarStyle": "Style",
+    "TaskbarMonitor": "Écran",
     "TaskbarStyleBold": "Grand",
     "TaskbarStyleRegular": "Petit",
     "TaskbarAlign": "Position",
     "TaskbarAlignRight": "Droite",
     "TaskbarAlignLeft": "Gauche",
-    "TaskbarAlignTip": "⚠️Gauche marche uniquement si barre centrée (Win11).",
+    "TaskbarOffset": "Décalage",
+    "TaskbarAlignTip": "⚠️Gauche si barre centrée (Win11). Décalage: 10px -20px",
 
     "TaskbarCustomColors": "Couleurs",
     "TaskbarCustomTip": "⚠️Le fond doit correspondre à la barre.",
+    "ScreenColorPicker": "Sélecteur",
+    "ScreenColorPickerTip": "Couleur fond:",
     "LabelColor": "Label",
     "ValueSafeColor": "Valeur",
     "ValueWarnColor": "Alerte",
@@ -111,6 +122,7 @@
 
     "__Comment_Page4__": "--- 4. Seuils ---",
     "Thresholds": "Seuils",
+    "ThresholdsTips": "⚠️Couleur barre selon seuil",
     "AlertTemp": "Alerte Temp",
     "AlertThreshold": "Limite",
 
@@ -142,6 +154,7 @@
     "NetworkSource": "Réseau",
     "Auto": "Auto",
     "UseSystemCpuLoad": "Utiliser CPU Sys",
+    "UseSystemCpuLoadTip": "⚠️Algorithme Gestionnaire. Effet ~10s",
     "Refresh": "Taux"
   }
 }
