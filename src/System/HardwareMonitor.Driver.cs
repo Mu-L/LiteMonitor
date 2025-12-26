@@ -194,7 +194,7 @@ namespace LiteMonitor.src.SystemServices
         private void DoShowDialog(string reason)
         {
              var result = MessageBox.Show(
-                $"PawnIO驱动缺失！\n\nLiteMonitor 无法自动配置 CPU 驱动。\n{reason}\n\n点击“确定”手动下载安装。",
+                $"PawnIO驱动缺失！\n\nLiteMonitor 无法自动配置 CPU 所需的PawnIO驱动\n将无法读取部分CPU数据！\n原因：{reason}\n\n点击“确定”手动下载安装。",
                 "LiteMonitor",
                 MessageBoxButtons.OKCancel,
                 MessageBoxIcon.Warning);
