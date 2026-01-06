@@ -17,9 +17,129 @@ namespace LiteMonitor.src.SystemServices
         {
             EnsureMapFresh();
             // ★★★ [新增] 拦截 CPU.Load 请求 ★★★
-            if (key == "CPU.Load" && _cfg.UseSystemCpuLoad)
+            // ★★★ 核心修复：手动计算所有核心的平均值，不再信那个 0.8% 的 Total ★★★
+            if (key == "CPU.Load")
             {
-                return _lastSystemCpuLoad;
+                // -------------------------------------------------------
+                // 1. [第一优先级] 系统计数器模式
+                // -------------------------------------------------------
+                // 如果用户在设置里勾选了"Use System Performance Counter"，
+                // 则直接返回系统计数器的值 (Processor Utility / Time)，
+                // 跳过后面所有的 LHM 传感器逻辑。
+                if (_cfg.UseSystemCpuLoad) 
+                {
+                    return _lastSystemCpuLoad;
+                }
+
+                // -------------------------------------------------------
+                // 2. [第二优先级] 手动聚合核心负载 (解决 0.8% 问题)
+                // -------------------------------------------------------
+                var cpu = _computer.Hardware.FirstOrDefault(h => h.HardwareType == HardwareType.Cpu);
+                if (cpu != null)
+                {
+                    double totalLoad = 0;
+                    int coreCount = 0;
+
+                    foreach (var s in cpu.Sensors)
+                    {
+                        // 只看 Load 类型
+                        if (s.SensorType != SensorType.Load) continue;
+
+                        string name = s.Name;
+
+                        // ★★★ 严格过滤策略 ★★★
+                        // 1. 白名单：必须包含 "Core" 且包含 "#" (如 "CPU Core #1")
+                        //    这能 100% 排除 "Core Max", "Core Average" 等导致虚高的统计值。
+                        // 2. 黑名单：再次显式排除 Total/SOC/Max/Average 以防万一。
+                        bool isRealCore = Has(name, "Core") && Has(name, "#");
+                        
+                        bool isNotStat  = !Has(name, "Total") && 
+                                        !Has(name, "SOC") && 
+                                        !Has(name, "Max") && 
+                                        !Has(name, "Average");
+
+                        if (isRealCore && isNotStat)
+                        {
+                            if (s.Value.HasValue)
+                            {
+                                totalLoad += s.Value.Value;
+                                coreCount++;
+                            }
+                        }
+                    }
+
+                    // 只要找到了有效的带编号核心，就返回平均值
+                    if (coreCount > 0)
+                    {
+                        return (float)(totalLoad / coreCount);
+                    }
+                }
+
+                // -------------------------------------------------------
+                // 3. [第三优先级] 兜底策略
+                // -------------------------------------------------------
+                // 如果代码走到这，说明：
+                // A. 没开系统计数器
+                // B. 也没找到任何带 "#" 的核心 (可能是极罕见的单核无编号CPU)
+                // 此时只能读取默认映射的 Total 传感器。
+                lock (_lock)
+                {
+                    if (_map.TryGetValue("CPU.Load", out var s) && s.Value.HasValue)
+                        return s.Value.Value;
+                }
+                
+                return 0f;
+            }
+
+            // ★★★ [终极修复] CPU.Temp 智能取最大值 ★★★
+            // ==========================================
+            if (key == "CPU.Temp")
+            {
+                float maxTemp = -1000f;
+                bool found = false;
+
+                var cpu = _computer.Hardware.FirstOrDefault(h => h.HardwareType == HardwareType.Cpu);
+                if (cpu != null)
+                {
+                    foreach (var s in cpu.Sensors)
+                    {
+                        // 1. 基础门槛：必须是温度，必须有正数值
+                        if (s.SensorType != SensorType.Temperature) continue;
+                        if (!s.Value.HasValue || s.Value.Value <= 0) continue;
+
+                        string name = s.Name;
+
+                        // 2. 【黑名单过滤】
+                        // 只要名字里带这些词，统统不要
+                        if (Has(name, "Distance")) continue; // 排除距离TjMax
+                        if (Has(name, "Average"))  continue; // 排除平均值
+                        if (Has(name, "Max"))      continue; // 排除 LHM 算好的 Max (既然我们要自己算)
+
+                        // 3. 【幸存者PK】
+                        // 此时剩下的只剩下：
+                        // - CPU Package
+                        // - CPU Core #1, Core #2 ...
+                        // - CPU P-Core #1, E-Core #1 ... (大小核都能进来)
+                        // - CPU CCD1 (AMD 也能进来)
+                        
+                        // 我们在这些“真·物理温度”里取一个最高的
+                        if (s.Value.Value > maxTemp)
+                        {
+                            maxTemp = s.Value.Value;
+                            found = true;
+                        }
+                    }
+                }
+
+                if (found) return maxTemp;
+
+                // 4. 字典兜底 (兼容主板)
+                lock (_lock)
+                {
+                    if (_map.TryGetValue("CPU.Temp", out var s) && s.Value.HasValue)
+                        return s.Value.Value;
+                }
+                return 0f;
             }
 
             // 1. 网络与磁盘 (独立逻辑)
@@ -117,66 +237,54 @@ namespace LiteMonitor.src.SystemServices
             {
                 if (_cpuCoreCache.Count == 0) return null;
 
-                double weightedSum = 0;
-                double totalLoad = 0;
-                float maxRawClock = 0;
-                float validCoreCount = 0; // 新增：记录读到频率的核心数
-                double sumRawClock = 0;   // 新增：记录频率总和（用于算简单平均）
-                // ★★★ [Zen 5 科学修正准备] ★★★
+                double sum = 0;
+                int count = 0;
+                float maxRaw = 0;
+
+                // Zen 5 修正 (保持不动)
                 float correctionFactor = 1.0f;
-                // 检查总线频率是否异常 (正常是 100MHz，如果小于 20MHz 肯定是 LHM 驱动 Bug)
                 if (_cpuBusSpeedSensor != null && _cpuBusSpeedSensor.Value.HasValue)
                 {
                     float bus = _cpuBusSpeedSensor.Value.Value;
-                    
-                    // 捕捉 15.3MHz 这种异常值 (排除 0 和极小干扰)
                     if (bus > 1.0f && bus < 20.0f) 
                     {
-                        // 动态计算修正系数：把当前读数还原回 100MHz 标准
                         float factor = 100.0f / bus;
-                        
-                        // [安全钳制] 正常修正大概在 6.5 倍左右 (100/15.3 ≈ 6.53)
-                        // 如果算出来系数过大 (如 >10)，可能是传感器读数错误，不予修正，防止显示爆炸
-                        if (factor > 2.0f && factor < 10.0f) 
-                        {
-                            correctionFactor = factor;
-                        }
+                        if (factor > 2.0f && factor < 10.0f) correctionFactor = factor;
                     }
                 }
-                // 遍历缓存，零 GC，极速
+
                 foreach (var core in _cpuCoreCache)
                 {
                     if (core.Clock == null || !core.Clock.Value.HasValue) continue;
-
-                    // ★★★ [应用修正] ★★★
-                    // 如果触发了 Bug，这里会自动乘以系数还原；否则系数为 1.0 (无影响)
                     float clk = core.Clock.Value.Value * correctionFactor;
 
-                    if (clk > maxRawClock) maxRawClock = clk;
-                    // 累加基础数据
-                    sumRawClock += clk;
-                    validCoreCount++;
+                    // 记录最大值 (给配置记录用，不参与显示计算)
+                    if (clk > maxRaw) maxRaw = clk;
 
-                    // 加权逻辑
-                    if (core.Load != null && core.Load.Value.HasValue)
+                    // ★★★ 核心逻辑：只过滤明显错误的极低值 ★★★
+                    // 只要大于 400MHz (0.4G)，就认为是有效核心。
+                    // 重点：不要过滤 E-Core！不要过滤待机核心！
+                    // 哪怕它是 800MHz 或 2400MHz，都要算进去，这样才能把 5.0G 拉低到 3.x G。
+                    // 同时排除 100MHz 的总线干扰。
+                    if (clk > 400f) 
                     {
-                        float ld = core.Load.Value.Value;
-                        weightedSum += clk * ld;
-                        totalLoad += ld;
+                        sum += clk;
+                        count++;
                     }
                 }
+                
+                // 更新最大值记录
+                if (maxRaw > 0) _cfg.UpdateMaxRecord(key, maxRaw);
 
-                // 记录物理最高频 (用于颜色自适应)
-                if (maxRawClock > 0) _cfg.UpdateMaxRecord(key, maxRawClock);
-
-                // 现逻辑：如果算不出加权平均（因为没负载），就返回简单平均值；如果简单平均也没有，返回最高频
-                if (totalLoad <= 0.001) 
+                // ★★★ 简单平均值 ★★★
+                // (P核 4.8 + P核 4.8 ... + E核 2.4 + E核 2.4) / 总数
+                // 结果就是稳定的 3.x GHz，完全对齐任务管理器。
+                if (count > 0)
                 {
-                    if (validCoreCount > 0) return (float)(sumRawClock / validCoreCount);
-                    return maxRawClock > 0 ? maxRawClock : 0;
+                    return (float)(sum / count);
                 }
 
-                return (float)(weightedSum / totalLoad);
+                return maxRaw;
             }
 
             // --- CPU 功耗：直接读取或回落 ---
@@ -513,7 +621,12 @@ namespace LiteMonitor.src.SystemServices
             // --- CPU ---
             if (type == HardwareType.Cpu)
             {
-                if (s.SensorType == SensorType.Load && Has(name, "total")) return "CPU.Load";
+                // 新代码：增加 "package" 支持，防止某些 CPU 把总负载叫 "CPU Package"
+                if (s.SensorType == SensorType.Load)
+                {
+                    if (Has(name, "total") || Has(name, "package")) 
+                        return "CPU.Load";
+                }
                 // [深度优化后的温度匹配逻辑]
                 if (s.SensorType == SensorType.Temperature)
                 {

@@ -89,10 +89,10 @@ namespace LiteMonitor
             var cursor = Cursor.Position;
 
             // ===== 模式判断 =====
-            bool isHorizontal = _cfg.HorizontalMode;
+            // bool isHorizontal = _cfg.HorizontalMode;
 
             // ===== 无论横竖模式都支持上、左、右三边靠边隐藏 =====
-            bool nearLeft = Left <= area.Left + _hideThreshold;
+            bool nearLeft = Left <= area.Left + _hideThreshold; 
             bool nearRight = area.Right - Right <= _hideThreshold;
             bool nearTop = Top <= area.Top + _hideThreshold;
             //bool nearBottom = area.Bottom - Bottom <= _hideThreshold; //下方不隐藏 会和任务量冲突

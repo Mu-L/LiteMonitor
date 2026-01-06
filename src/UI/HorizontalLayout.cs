@@ -135,11 +135,11 @@ namespace LiteMonitor
                     ).Width;
 
                     int wValue = Math.Max(wValueTop, wValueBottom);
-                    int paddingX = _rowH;
+                    int paddingX = (int)Math.Round(_rowH * 0.8f);
                     if (_mode == LayoutMode.Taskbar)
                     {
                         // 任务栏模式：紧凑固定左/右内间距
-                        paddingX = (int)Math.Round(10 * dpi);
+                        paddingX = (int)Math.Round(8 * dpi);
                     }
                     // ====== 列宽（不再限制最大/最小宽度）======
                     col.ColumnWidth = wLabel + wValue + paddingX;

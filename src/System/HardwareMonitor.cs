@@ -274,27 +274,53 @@ namespace LiteMonitor.src.SystemServices
                 // ★★★ [新增] 重置硬盘计时器 ★★★
                 if (needDiskBgScan) _lastDiskBgScan = DateTime.Now;
 
-                // ★★★ [新增] 更新系统 CPU 计数器 ★★★
+                // ★★★ [新增] 更新系统 CPU 计数器 (算法增强版) ★★★
                 if (_cfg.UseSystemCpuLoad)
                 {
                     if (_cpuPerfCounter == null)
                     {
                         try 
                         {
-                            // 初始化计数器："Processor" 是类别，"% Processor Time" 是计数器名，"_Total" 是实例名
-                            _cpuPerfCounter = new PerformanceCounter("Processor", "% Processor Time", "_Total");
-                            _cpuPerfCounter.NextValue(); // 第一次调用通常返回 0，用于建立基准
+                            // 优先尝试：Processor Information / % Processor Utility (Win8+ 任务管理器算法)
+                            // 这个计数器考虑了频率缩放，数据最准确
+                            _cpuPerfCounter = new PerformanceCounter("Processor Information", "% Processor Utility", "_Total");
                         }
-                        catch (Exception ex)
+                        catch
                         {
-                            Debug.WriteLine("Init CPU Counter failed: " + ex.Message);
+                            try
+                            {
+                                // 回退方案：Processor / % Processor Time (Win7 或兼容模式)
+                                _cpuPerfCounter = new PerformanceCounter("Processor", "% Processor Time", "_Total");
+                            }
+                            catch (Exception ex)
+                            {
+                                Debug.WriteLine("Init CPU Counter failed: " + ex.Message);
+                            }
                         }
+                        
+                        // 第一次调用通常返回 0，用于建立基准
+                        if (_cpuPerfCounter != null) _cpuPerfCounter.NextValue(); 
                     }
 
                     if (_cpuPerfCounter != null)
                     {
-                        // NextValue 获取的是“上一次调用到现在的平均值”，非常适合 1秒1次的 UpdateAll
-                        _lastSystemCpuLoad = _cpuPerfCounter.NextValue();
+                        try
+                        {
+                            // 获取最新值
+                            float rawVal = _cpuPerfCounter.NextValue();
+
+                            // 修正：Utility 计数器在睿频时可能会超过 100% (比如 120%)
+                            // 任务管理器会将其钳制在 100%，我们也照做
+                            if (rawVal > 100f) rawVal = 100f;
+
+                            _lastSystemCpuLoad = rawVal;
+                        }
+                        catch 
+                        {
+                            // 如果读取失败，释放并在下一轮重试
+                            _cpuPerfCounter.Dispose();
+                            _cpuPerfCounter = null;
+                        }
                     }
                 }
                 else

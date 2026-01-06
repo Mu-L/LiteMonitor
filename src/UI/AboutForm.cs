@@ -21,7 +21,10 @@ namespace LiteMonitor
             MinimizeBox = false;
             ShowInTaskbar = false;
             TopMost = true;                                   // ✅ 确保显示在最前
-            ClientSize = new Size(360, 280);
+            
+            // ★★★ DPI 修复：计算缩放系数并应用 ★★★
+            UIUtils.ScaleFactor = this.DeviceDpi / 96f;
+            ClientSize = UIUtils.S(new Size(360, 280));
 
             var theme = ThemeManager.Current;
             BackColor = ThemeManager.ParseColor(theme.Color.GroupBackground);
@@ -33,7 +36,7 @@ namespace LiteMonitor
                 Font = new Font(theme.Font.Family, 14, FontStyle.Bold),
                 ForeColor = ThemeManager.ParseColor(theme.Color.TextTitle),
                 AutoSize = true,
-                Location = new Point(30, 28)
+                Location = new Point(UIUtils.S(30), UIUtils.S(28))
             };
 
             // === 简洁版本号 ===
@@ -49,7 +52,7 @@ namespace LiteMonitor
             {
                 Text = $"Version {version}",
                 ForeColor = ThemeManager.ParseColor(theme.Color.TextPrimary),
-                Location = new Point(32, 68),
+                Location = new Point(UIUtils.S(32), UIUtils.S(68)),
                 AutoSize = true
             };
 
@@ -58,7 +61,7 @@ namespace LiteMonitor
             {
                 Text = "A lightweight desktop hardware monitor.\n© 2025 Diorser / LiteMonitor Project",
                 ForeColor = ThemeManager.ParseColor(theme.Color.TextPrimary),
-                Location = new Point(32, 98),
+                Location = new Point(UIUtils.S(32), UIUtils.S(98)),
                 AutoSize = true
             };
 
@@ -69,7 +72,7 @@ namespace LiteMonitor
                 LinkColor = Color.SkyBlue,
                 ActiveLinkColor = Color.LightSkyBlue,
                 VisitedLinkColor = Color.DeepSkyBlue,
-                Location = new Point(32, 150),
+                Location = new Point(UIUtils.S(32), UIUtils.S(150)),
                 AutoSize = true
             };
             websiteLink.LinkClicked += (_, __) =>
@@ -89,7 +92,7 @@ namespace LiteMonitor
                 LinkColor = Color.SkyBlue,
                 ActiveLinkColor = Color.LightSkyBlue,
                 VisitedLinkColor = Color.DeepSkyBlue,
-                Location = new Point(32, 175),
+                Location = new Point(UIUtils.S(32), UIUtils.S(175)),
                 AutoSize = true
             };
             githubLink.LinkClicked += (_, __) =>
@@ -106,9 +109,9 @@ namespace LiteMonitor
             var btnCheckUpdate = new Button
             {
                 Text = "Update?",
-                Size = new Size(100, 30),
+                Size = UIUtils.S(new Size(100, 30)),
                 Anchor = AnchorStyles.Bottom | AnchorStyles.Left,
-                Location = new Point(ClientSize.Width - 210, ClientSize.Height - 45),
+                Location = new Point(UIUtils.S(150), UIUtils.S(235)),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = ThemeManager.ParseColor(theme.Color.BarBackground),
                 ForeColor = ThemeManager.ParseColor(theme.Color.TextPrimary),
@@ -124,8 +127,8 @@ namespace LiteMonitor
                 Text = "OK",
                 DialogResult = DialogResult.OK,
                 Anchor = AnchorStyles.Bottom | AnchorStyles.Right,
-                Size = new Size(70, 30),
-                Location = new Point(ClientSize.Width - 90, ClientSize.Height - 45),
+                Size = UIUtils.S(new Size(70, 30)),
+                Location = new Point(UIUtils.S(270), UIUtils.S(235)),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = ThemeManager.ParseColor(theme.Color.BarBackground),
                 ForeColor = ThemeManager.ParseColor(theme.Color.TextPrimary),
