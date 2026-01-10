@@ -288,7 +288,9 @@ namespace LiteMonitor.src.SystemServices
         public static List<string> ListAllNetworks() 
         {
             if (Instance == null) return new List<string>();
-            if (Instance._cachedNetworkList != null) return Instance._cachedNetworkList;
+            // 修复：如果缓存有数据，返回副本 (.ToList()) 避免污染缓存
+            if (Instance._cachedNetworkList != null && Instance._cachedNetworkList.Count > 0) 
+                return Instance._cachedNetworkList.ToList();
 
             var list = Instance._computer.Hardware
                 .Where(h => h.HardwareType == HardwareType.Network)
@@ -296,7 +298,8 @@ namespace LiteMonitor.src.SystemServices
                 .Distinct()
                 .ToList();
             
-            Instance._cachedNetworkList = list;
+            // 修复：只有搜到硬件才存入缓存，防止启动时的空列表被永久缓存
+            if (list.Count > 0) Instance._cachedNetworkList = list;
             return list;
         }
 
@@ -304,7 +307,9 @@ namespace LiteMonitor.src.SystemServices
         public static List<string> ListAllDisks() 
         {
             if (Instance == null) return new List<string>();
-            if (Instance._cachedDiskList != null) return Instance._cachedDiskList;
+            // 修复：返回副本
+            if (Instance._cachedDiskList != null && Instance._cachedDiskList.Count > 0) 
+                return Instance._cachedDiskList.ToList();
 
             var list = Instance._computer.Hardware
                 .Where(h => h.HardwareType == HardwareType.Storage)
@@ -312,7 +317,7 @@ namespace LiteMonitor.src.SystemServices
                 .Distinct()
                 .ToList();
 
-            Instance._cachedDiskList = list;
+            if (list.Count > 0) Instance._cachedDiskList = list;
             return list;
         }
         
@@ -320,7 +325,9 @@ namespace LiteMonitor.src.SystemServices
         public static List<string> ListAllFans()
         {
             if (Instance == null) return new List<string>();
-            if (Instance._cachedFanList != null) return Instance._cachedFanList; // 优先读缓存
+            // 修复：返回副本
+            if (Instance._cachedFanList != null && Instance._cachedFanList.Count > 0) 
+                return Instance._cachedFanList.ToList(); 
             
             var list = new List<string>();
 
@@ -367,16 +374,19 @@ namespace LiteMonitor.src.SystemServices
             
             // 排序并去重
             list.Sort(); 
+            var final = list.Distinct().ToList();
             // 存入缓存
-            Instance._cachedFanList = list.Distinct().ToList();
-            return Instance._cachedFanList;
+            if (final.Count > 0) Instance._cachedFanList = final;
+            return final;
         }
 
         // 列出所有适合作为"主板/系统温度"的传感器
         public static List<string> ListAllMoboTemps()
         {
             if (Instance == null) return new List<string>();
-            if (Instance._cachedMoboTempList != null) return Instance._cachedMoboTempList;
+            // 修复：返回副本
+            if (Instance._cachedMoboTempList != null && Instance._cachedMoboTempList.Count > 0) 
+                return Instance._cachedMoboTempList.ToList();
 
             var list = new List<string>();
 
@@ -384,12 +394,12 @@ namespace LiteMonitor.src.SystemServices
             {
                 // 排除逻辑：只想要主板上的传感器，排除 CPU核心、显卡、硬盘、内存条、网卡
                 bool isExcluded = hw.HardwareType == HardwareType.Cpu ||
-                                hw.HardwareType == HardwareType.GpuNvidia ||
-                                hw.HardwareType == HardwareType.GpuAmd ||
-                                hw.HardwareType == HardwareType.GpuIntel ||
-                                hw.HardwareType == HardwareType.Storage ||
-                                hw.HardwareType == HardwareType.Memory ||
-                                hw.HardwareType == HardwareType.Network;
+                                  hw.HardwareType == HardwareType.GpuNvidia ||
+                                  hw.HardwareType == HardwareType.GpuAmd ||
+                                  hw.HardwareType == HardwareType.GpuIntel ||
+                                  hw.HardwareType == HardwareType.Storage ||
+                                  hw.HardwareType == HardwareType.Memory ||
+                                  hw.HardwareType == HardwareType.Network;
 
                 if (!isExcluded)
                 {
@@ -410,8 +420,9 @@ namespace LiteMonitor.src.SystemServices
             foreach (var hw in Instance._computer.Hardware) ScanHardware(hw);
 
             list.Sort();
-            Instance._cachedMoboTempList = list.Distinct().ToList();
-            return Instance._cachedMoboTempList;
+            var final = list.Distinct().ToList();
+            if (final.Count > 0) Instance._cachedMoboTempList = final;
+            return final;
         }
 
         private static IEnumerable<ISensor> GetAllSensors(IHardware hw, SensorType type)

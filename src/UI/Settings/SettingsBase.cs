@@ -62,6 +62,26 @@ namespace LiteMonitor.src.UI.SettingsPage
             foreach (var i in items) cmb.Items.Add(i);
             BindCombo(cmb, get, set);
             group.AddItem(new LiteSettingsItem(LanguageManager.T(titleKey), cmb));
+            
+            // ★★★ 新增：下拉时自动调整宽度 ★★★
+            cmb.Inner.DropDown += (s, e) =>
+            {
+                var box = (ComboBox)s;
+                int maxWidth = box.Width; // 至少和控件本身一样宽
+                int scrollBarWidth = SystemInformation.VerticalScrollBarWidth;
+
+                foreach (var item in box.Items)
+                {
+                    if (item == null) continue;
+                    // 计算文字宽度 + 滚动条预留空间 + 一点边距缓冲(10)
+                    int w = TextRenderer.MeasureText(item.ToString(), box.Font).Width + scrollBarWidth + 10;
+                    if (w > maxWidth) maxWidth = w;
+                }
+                
+                // 设置下拉列表的宽度（不会改变控件本身的显示宽度）
+                box.DropDownWidth = maxWidth;
+            };
+
             return cmb;
         }
 
