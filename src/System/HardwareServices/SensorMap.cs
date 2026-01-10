@@ -155,7 +155,8 @@ namespace LiteMonitor.src.SystemServices
                 {
                     string? key = NormalizeKey(hw, s); // 调用 Logic 文件中的方法
                     if (!string.IsNullOrEmpty(key) && !newMap.ContainsKey(key))
-                        newMap[key] = s;
+                        // ★★★ 优化：使用 Intern 驻留 Key 字符串 ★★★
+                        newMap[UIUtils.Intern(key)] = s;
                 }
 
                 foreach (var sub in hw.SubHardware) RegisterTo(sub);

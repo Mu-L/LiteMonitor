@@ -211,10 +211,10 @@ namespace LiteMonitor.src.Core
     {
         public static Theme Current { get; private set; } = new Theme();
         
-        // ★★★ 优化 + 安全：添加锁机制 ★★★
-        private static readonly Dictionary<string, string> _stringPool = new(StringComparer.Ordinal);
+        // ★★★ 修改：移除 _stringPool，只保留 _colorCache ★★★
+        // private static readonly Dictionary<string, string> _stringPool ... (删除)
         private static readonly Dictionary<string, Color> _colorCache = new(32);
-        private static readonly object _lock = new object(); // 🔒 线程锁
+        private static readonly object _lock = new object(); 
 
         public static string ThemeDir
         {
@@ -265,7 +265,6 @@ namespace LiteMonitor.src.Core
 
                 if (theme == null)
                     throw new Exception("Theme parse failed.");
-
                 // 构建运行期字体
                 theme.BuildFonts();
 
@@ -285,36 +284,17 @@ namespace LiteMonitor.src.Core
             }
         }
         
-        /// <summary>
-        /// 字符串池化：优化内存占用，避免重复字符串。
-        /// </summary>
-        private static string Intern(string str)
-        {
-            if (string.IsNullOrEmpty(str)) return string.Empty;
-            
-            lock (_lock) // 🔒 加锁
-            {
-                if (!_stringPool.TryGetValue(str, out var pooled))
-                {
-                    pooled = string.Intern(str);
-                    _stringPool[str] = pooled;
-                }
-                return pooled;
-            }
-        }
-        /// <summary>
-        /// 颜色解析：
-        /// - 支持 #RRGGBB / #AARRGGBB
-        /// - 支持 rgba(r,g,b,a)（a ∈ [0,1]）
-        /// </summary>
+        // ★★★ 修改：删除私有 Intern 方法 ★★★
+        // private static string Intern(string str) ... (删除)
+
         public static Color ParseColor(string colorStr)
         {
             if (string.IsNullOrWhiteSpace(colorStr)) 
                 return Color.Transparent;
 
-            string key = Intern(colorStr);
+            // ★★★ 修改：使用 UIUtils 的全局池 ★★★
+            string key = UIUtils.Intern(colorStr);
             
-            // 🔒 读缓存加锁
             lock (_lock)
             {
                 if (_colorCache.TryGetValue(key, out var cached))
@@ -365,8 +345,10 @@ namespace LiteMonitor.src.Core
             lock (_lock) // 🔒 加锁
             {
                 _colorCache.Clear();
-                _stringPool.Clear();
+                // _stringPool.Clear(); (删除，这里不需要清理全局字符串，因为主题切换不影响硬件Key)
             }
+            // ★★★ 新增：清理 UIUtils 的画刷缓存 (配合主题切换) ★★★
+            UIUtils.ClearBrushCache(); 
         }
     }
 }

@@ -6,13 +6,40 @@ using System.Linq; // 补全引用
 using System; // 补全引用
 
 namespace LiteMonitor.src.Core
-
 {
     /// <summary>
     /// LiteMonitor 的公共 UI 工具库（所有渲染器可用）
     /// </summary>
     public static class UIUtils
     {
+        // ============================================================
+        // ★★★ 新增：全局字符串驻留池 (内存优化 T1) ★★★
+        // ============================================================
+        private static readonly Dictionary<string, string> _stringPool = new(StringComparer.Ordinal);
+        private static readonly object _poolLock = new object();
+
+        /// <summary>
+        /// 全局字符串驻留：如果池子里有一样的字符串，就返回池子里的引用，丢弃当前的。
+        /// </summary>
+        public static string Intern(string str)
+        {
+            if (string.IsNullOrEmpty(str)) return string.Empty;
+            lock (_poolLock)
+            {
+                if (_stringPool.TryGetValue(str, out var pooled)) return pooled;
+                _stringPool[str] = str;
+                return str;
+            }
+        }
+
+        /// <summary>
+        /// 清空字符串池 (建议在重置硬件服务时调用)
+        /// </summary>
+        public static void ClearStringPool()
+        {
+            lock (_poolLock) _stringPool.Clear();
+        }
+
         // ============================================================
         // ★★★ 新增：DPI 适配工具 ★★★
         // ============================================================
@@ -24,7 +51,7 @@ namespace LiteMonitor.src.Core
         public static Size S(Size size) => new Size(S(size.Width), S(size.Height));
         public static Padding S(Padding p) => new Padding(S(p.Left), S(p.Top), S(p.Right), S(p.Bottom));
 
-       // ============================================================
+        // ============================================================
         // ★★★ 优化：画刷缓存机制下沉到此处 ★★★
         // ============================================================
         private static readonly Dictionary<string, SolidBrush> _brushCache = new(16);
@@ -36,7 +63,7 @@ namespace LiteMonitor.src.Core
         /// </summary>
         public static SolidBrush GetBrush(string color)
         {
-            if (string.IsNullOrEmpty(color)) 
+            if (string.IsNullOrEmpty(color))
                 return (SolidBrush)Brushes.Transparent;
 
             lock (_brushLock) // 🔒 整个过程加锁
@@ -88,11 +115,11 @@ namespace LiteMonitor.src.Core
             // 1. 内存/显存特殊显示逻辑 (必须放在第一位)
             if (k.Contains("MEM") || k.Contains("VRAM"))
             {
-                // 1. 读取配置
+                // 1. 读取配置 (注意：此处 Settings.Load() 现在是单例极速模式)
                 var cfg = Settings.Load();
-                
+
                 // 2. 判断模式：如果是 1 (已用容量)
-                if (cfg.MemoryDisplayMode == 1) 
+                if (cfg.MemoryDisplayMode == 1)
                 {
                     double totalGB = 0;
                     // 获取对应的总容量 (从 Settings 静态变量)
@@ -104,25 +131,25 @@ namespace LiteMonitor.src.Core
                     {
                         // 计算：(百分比 / 100) * 总GB = 已用GB
                         double usedGB = (v / 100.0) * totalGB;
-                        
+
                         // 转成 Bytes 喂给 FormatDataSize
                         double usedBytes = usedGB * 1024.0 * 1024.0 * 1024.0;
-                        
+
                         // 这里的 1 表示强制保留 1 位小数 (如 12.5GB)
-                        return FormatDataSize(usedBytes, "", 1); 
+                        return FormatDataSize(usedBytes, "", 1);
                     }
                 }
-                
+
                 // 模式为 0 (百分比)，或者还没探测到总容量 -> 回落显示百分比
                 return $"{v:0.0}%";
             }
 
-             // 2. 百分比类 (Load)
-            if (k.Contains("LOAD")) 
+            // 2. 百分比类 (Load)
+            if (k.Contains("LOAD"))
                 return $"{v:0.0}%";
 
             // 2. 温度类
-            if (k.Contains("TEMP")) 
+            if (k.Contains("TEMP"))
                 return $"{v:0.0}°C";
 
             // ★★★ [新增] 风扇支持 ★★★
@@ -143,7 +170,7 @@ namespace LiteMonitor.src.Core
             if (k.StartsWith("NET") || k.StartsWith("DISK"))
                 return FormatDataSize(v, "/s"); // 速率带 /s
 
-            
+
             if (k.StartsWith("DATA"))
                 return FormatDataSize(v, "");   // 总量不带 /s
 
@@ -163,10 +190,10 @@ namespace LiteMonitor.src.Core
             string[] sizes = { "KB", "MB", "GB", "TB", "PB" };
             double len = bytes;
             int order = 0;
-            
+
             // 初始就转换为 KB
             len /= 1024.0;
-            
+
             // 自动升级单位 (>= 1024)
             while (len >= 1024 && order < sizes.Length - 1)
             {
@@ -194,7 +221,7 @@ namespace LiteMonitor.src.Core
                 // 强制指定位数 (如 "0.0", "0.00")
                 format = "0." + new string('0', decimals);
             }
-            
+
             return $"{len.ToString(format)}{sizes[order]}{suffix}";
         }
 
@@ -224,7 +251,7 @@ namespace LiteMonitor.src.Core
                 // 仅显示数字，不显示单位
                 return ((int)Math.Round(num)).ToString() + "R";
             }
-                
+
             return num >= 100
                 ? ((int)Math.Round(num)) + unit
                 : num.ToString("0.0") + unit;
@@ -236,9 +263,9 @@ namespace LiteMonitor.src.Core
         public static Color GetColor(string key, double value, Theme t, bool isValueText = true)
         {
             if (double.IsNaN(value)) return ThemeManager.ParseColor(t.Color.TextPrimary);
-            
+
             // 调用核心逻辑
-            int result = GetColorResult(key, value); 
+            int result = GetColorResult(key, value);
 
             if (result == 2) return ThemeManager.ParseColor(isValueText ? t.Color.ValueCrit : t.Color.BarHigh);
             if (result == 1) return ThemeManager.ParseColor(isValueText ? t.Color.ValueWarn : t.Color.BarMid);
@@ -263,14 +290,14 @@ namespace LiteMonitor.src.Core
 
             // 2. 使用 GetThresholds 获取阈值
             var (warn, crit) = GetThresholds(key); // GetThresholds 内部已处理 NET/DISK 分离
-            
+
             // 3.NET/DISK 特殊处理：将 B/s 转换为 KB/s
             if (k.StartsWith("NET") || k.StartsWith("DISK") || k.Contains("DATA"))
-                value /= 1024.0 * 1024.0; 
+                value /= 1024.0 * 1024.0;
 
             if (value >= crit) return 2; // Crit
             if (value >= warn) return 1; // Warn
-            
+
             return 0; // Safe
         }
 
@@ -280,14 +307,14 @@ namespace LiteMonitor.src.Core
         // ============================================================
         public static (double warn, double crit) GetThresholds(string key)
         {
-            var cfg = Settings.Load(); 
+            var cfg = Settings.Load();
             string k = key.ToUpperInvariant();
             var th = cfg.Thresholds;
 
             // Load, VRAM, Mem，CLOCK/POWER，★ FAN
-            if (k.Contains("LOAD") || k.Contains("VRAM") || k.Contains("MEM")||k.Contains("CLOCK") || k.Contains("POWER") || k.Contains("FAN") || k.Contains("PUMP"))
+            if (k.Contains("LOAD") || k.Contains("VRAM") || k.Contains("MEM") || k.Contains("CLOCK") || k.Contains("POWER") || k.Contains("FAN") || k.Contains("PUMP"))
                 return (th.Load.Warn, th.Load.Crit);
-            
+
             // Temp
             if (k.Contains("TEMP"))
                 return (th.Temp.Warn, th.Temp.Crit);
@@ -326,12 +353,12 @@ namespace LiteMonitor.src.Core
 
             // ★★★ [CRITICAL FIX] 防止宽度/高度 <= 0 导致的 Crash ★★★
             // GDI+ 的 AddArc 如果遇到宽或高为 0 会抛出 ArgumentException
-            if (r.Width <= 0 || r.Height <= 0) 
+            if (r.Width <= 0 || r.Height <= 0)
             {
                 // 返回空路径（不绘制任何东西），安全的退出
                 return p;
             }
-            
+
             // ★★★ 修复：如果半径 <= 0，直接添加直角矩形并返回，防止 Crash ★★★
             if (radius <= 0)
             {
@@ -340,7 +367,7 @@ namespace LiteMonitor.src.Core
             }
 
             int d = radius * 2;
-            
+
             // 防御性编程：如果圆角直径比矩形还大，限制它
             // 此时如果 d 变成了 0（因为 width 是 0），下面的 AddArc 依然会崩，
             // 所以最上面的 Width <= 0 判断非常重要。
@@ -425,7 +452,7 @@ namespace LiteMonitor.src.Core
             if (w > 0)
             {
                 var filled = new Rectangle(bar.X, bar.Y, w, bar.Height);
-                
+
                 // 简单防越界
                 if (filled.Width > bar.Width) filled.Width = bar.Width;
 
@@ -464,21 +491,21 @@ namespace LiteMonitor.src.Core
             return pct > 1.0 ? 1.0 : pct;
         }
 
-        public static int ParseInt(string s) 
-        { 
+        public static int ParseInt(string s)
+        {
             if (string.IsNullOrWhiteSpace(s)) return 0;
             string clean = new string(s.Where(c => char.IsDigit(c) || c == '-').ToArray());
-            return int.TryParse(clean, out int v) ? v : 0; 
+            return int.TryParse(clean, out int v) ? v : 0;
         }
 
-        public static double ParseDouble(string s) 
-        { 
+        public static double ParseDouble(string s)
+        {
             if (string.IsNullOrWhiteSpace(s)) return 0;
             // 允许小数点
             string clean = new string(s.Where(c => char.IsDigit(c) || c == '.' || c == '-').ToArray());
-            return double.TryParse(clean, out double v) ? v : 0; 
+            return double.TryParse(clean, out double v) ? v : 0;
         }
-        
+
         // 浮点数转显示字符串（统一格式）
         public static string ToStr(double v, string format = "F1") => v.ToString(format);
     }

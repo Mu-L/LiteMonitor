@@ -163,11 +163,19 @@ namespace LiteMonitor
             }
         }
 
-        private static string FilePath => Path.Combine(AppContext.BaseDirectory, "settings.json");
+        // ★★★ 优化 1：缓存路径，避免重复 Combine ★★★
+        private static readonly string _cachedPath = Path.Combine(AppContext.BaseDirectory, "settings.json");
+        private static string FilePath => _cachedPath;
 
+        // ★★★ 优化 2：全局单例引用 ★★★
+        private static Settings _instance;
 
-        public static Settings Load()
+        // ★★★ 优化 3：改造 Load 方法为单例模式 ★★★
+        public static Settings Load(bool forceReload = false)
         {
+            // 如果单例已存在且不强制刷新，直接返回内存对象 (0 IO, 0 GC)
+            if (_instance != null && !forceReload) return _instance;
+
             Settings s = new Settings();
             try
             {
@@ -213,6 +221,9 @@ namespace LiteMonitor
             }
 
             s.SyncToLanguage();
+            
+            // 赋值单例
+            _instance = s;
             return s;
         }
 
@@ -332,12 +343,12 @@ namespace LiteMonitor
     public class MonitorItemConfig
     {
         // ★★★ 核心优化：使用字符串驻留池解决内存浪费 ★★★
-        private string _key = "";
+       private string _key = "";
         public string Key 
         { 
             get => _key; 
-            // 自动去重：如果内存中已有 "CPU.Load"，则复用那个引用
-            set => _key = string.Intern(value ?? ""); 
+            // ★★★ 修改：使用可回收的 UIUtils.Intern ★★★
+            set => _key = UIUtils.Intern(value ?? "");   // 新代码
         }
         public string UserLabel { get; set; } = ""; 
         public string TaskbarLabel { get; set; } = "";
