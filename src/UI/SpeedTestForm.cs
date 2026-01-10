@@ -476,25 +476,44 @@ namespace LiteMonitor
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
             int totalDurationMs = _downloadSeconds * 1000;
+            
+            // ★★★ 优化：UI 刷新限频变量 ★★★
+            long lastUiTick = 0;
+            int lastSeconds = -1;
 
             double result = await NetworkSpeedTester.TestDownloadAsync(
                 durationSec: _downloadSeconds,
                 threads: 8,
-                progress: speed => Invoke(new Action(() =>
+                progress: speed => 
                 {
-                    // 1. 更新速度
-                    lblSpeed.Text = $"Internet: ↓ {speed:F1} Mbps   ↑ 0.0 Mbps";
+                    // ★★★ 核心修复：限频逻辑 ★★★
+                    // 1. 在后台线程直接判断时间，只有超过 100ms 才进入 Invoke
+                    // 这样可以避免每秒数千次向 UI 线程发送消息，极大降低了界面卡顿和内存压力
+                    long now = stopwatch.ElapsedMilliseconds;
+                    if (now - lastUiTick < 100 && now < totalDurationMs) return;
+                    lastUiTick = now;
 
-                    // 2. 更新进度条 (基于时间)
-                    double timeRatio = (double)stopwatch.ElapsedMilliseconds / totalDurationMs;
-                    int progressRange = endProgress - startProgress;
-                    int progressValue = startProgress + (int)(timeRatio * progressRange);
-                    bar.Value = Math.Min(progressValue, endProgress);
+                    Invoke(new Action(() =>
+                    {
+                        // 1. 更新速度
+                        lblSpeed.Text = $"Internet: ↓ {speed:F1} Mbps   ↑ 0.0 Mbps";
 
-                    // 3. 核心优化：简化状态文本
-                    int remainingSeconds = (int)Math.Ceiling((totalDurationMs - stopwatch.ElapsedMilliseconds) / 1000.0);
-                    lblStatus.Text = $"Downloading... ({remainingSeconds}s)";
-                }))
+                        // 2. 更新进度条 (基于时间)
+                        double timeRatio = (double)now / totalDurationMs;
+                        int progressRange = endProgress - startProgress;
+                        int progressValue = startProgress + (int)(timeRatio * progressRange);
+                        bar.Value = Math.Min(progressValue, endProgress);
+
+                        // 3. 核心优化：简化状态文本 + 防抖
+                        int remainingSeconds = (int)Math.Ceiling((totalDurationMs - now) / 1000.0);
+                        // ★★★ 优化：只有整数秒变化时才分配新字符串 ★★★
+                        if (remainingSeconds != lastSeconds)
+                        {
+                            lastSeconds = remainingSeconds;
+                            lblStatus.Text = $"Downloading... ({remainingSeconds}s)";
+                        }
+                    }));
+                }
             );
             stopwatch.Stop();
             Invoke(new Action(() => bar.Value = endProgress));
@@ -509,24 +528,40 @@ namespace LiteMonitor
             Stopwatch stopwatch = Stopwatch.StartNew();
             int totalDurationMs = _uploadSeconds * 1000;
 
+            // ★★★ 优化：UI 刷新限频变量 ★★★
+            long lastUiTick = 0;
+            int lastSeconds = -1;
+
             double result = await NetworkSpeedTester.TestUploadAsync(
                 durationSec: _uploadSeconds,
                 threads: 8,
-                progress: speed => Invoke(new Action(() =>
+                progress: speed => 
                 {
-                    // 1. 更新速度
-                    lblSpeed.Text = $"Internet: ↓ {lastDownload:F1} Mbps   ↑ {speed:F1} Mbps";
+                    // ★★★ 核心修复：限频逻辑 ★★★
+                    long now = stopwatch.ElapsedMilliseconds;
+                    if (now - lastUiTick < 100 && now < totalDurationMs) return;
+                    lastUiTick = now;
 
-                    // 2. 更新进度条 (基于时间)
-                    double timeRatio = (double)stopwatch.ElapsedMilliseconds / totalDurationMs;
-                    int progressRange = endProgress - startProgress;
-                    int progressValue = startProgress + (int)(timeRatio * progressRange);
-                    bar.Value = Math.Min(progressValue, endProgress);
+                    Invoke(new Action(() =>
+                    {
+                        // 1. 更新速度
+                        lblSpeed.Text = $"Internet: ↓ {lastDownload:F1} Mbps   ↑ {speed:F1} Mbps";
 
-                    // 3. 核心优化：简化状态文本
-                    int remainingSeconds = (int)Math.Ceiling((totalDurationMs - stopwatch.ElapsedMilliseconds) / 1000.0);
-                    lblStatus.Text = $"Uploading... ({remainingSeconds}s)";
-                }))
+                        // 2. 更新进度条 (基于时间)
+                        double timeRatio = (double)now / totalDurationMs;
+                        int progressRange = endProgress - startProgress;
+                        int progressValue = startProgress + (int)(timeRatio * progressRange);
+                        bar.Value = Math.Min(progressValue, endProgress);
+
+                        // 3. 核心优化：简化状态文本 + 防抖
+                        int remainingSeconds = (int)Math.Ceiling((totalDurationMs - now) / 1000.0);
+                        if (remainingSeconds != lastSeconds)
+                        {
+                            lastSeconds = remainingSeconds;
+                            lblStatus.Text = $"Uploading... ({remainingSeconds}s)";
+                        }
+                    }));
+                }
             );
             stopwatch.Stop();
             Invoke(new Action(() => bar.Value = endProgress));

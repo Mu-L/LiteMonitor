@@ -325,7 +325,7 @@ namespace LiteMonitor.src.SystemServices
                 {
                     if (i > startIndex)
                     {
-                        result.Add(input.Substring(startIndex, i - startIndex));
+                        result.Add(UIUtils.Intern(input.Substring(startIndex, i - startIndex)));
                     }
                     startIndex = i + 1;
                 }
@@ -333,7 +333,7 @@ namespace LiteMonitor.src.SystemServices
             
             if (startIndex < length)
             {
-                result.Add(input.Substring(startIndex));
+                result.Add(UIUtils.Intern(input.Substring(startIndex)));
             }
         }
         

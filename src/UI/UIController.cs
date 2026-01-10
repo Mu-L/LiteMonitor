@@ -51,26 +51,37 @@ namespace LiteMonitor
             }
         }
 
-        // ★★★★★ [核心修复] 解决闪烁和边距不对称 ★★★★★
         public void ApplyTheme(string name)
         {
-            ThemeManager.Load(name);
+            // 1. 先保留旧主题的引用 (为了稍后释放)
+            var oldTheme = ThemeManager.Current;
+
+            // 2. 清理全局画刷缓存 (这不会影响 ThemeManager 的字体了，因为解耦了)
             UIRenderer.ClearCache();
+            UIUtils.ClearBrushCache();
+
+            // 3. 加载新主题 (Current 指向新对象，包含全新的字体)
+            ThemeManager.Load(name);
             var t = ThemeManager.Current;
 
+            // 4. 安全释放旧主题的字体
+            // 此时 Current 已经是新主题了，Paint 事件只会用新字体，所以释放旧的是安全的
+            if (oldTheme != null && oldTheme != t)
+            {
+                oldTheme.DisposeFonts();
+            }
+
+            // ... 后续缩放逻辑保持不变 ...
             float dpiScale = GetCurrentDpiScale();   
             float userScale = (float)_cfg.UIScale;    
             float finalScale = dpiScale * userScale;
 
-            t.Scale(dpiScale, userScale);
+            t.Scale(dpiScale, userScale); // Scale 内部现在会自动清理旧缩放字体
 
-            // [修复2：边距不对称]
-            // 不要设置 Width，而是设置 ClientSize。
-            // 这确保了“实际绘图区域”严格等于 t.Layout.Width，消除了边框/阴影导致的右侧裁切误差。
+            // ... 边距修复逻辑 ...
             if (!_cfg.HorizontalMode)
             {
                 t.Layout.Width = (int)(_cfg.PanelWidth * finalScale);
-                // 仅设置宽度，保持高度不变(高度由 Render 决定)，或者给个初值
                 _form.ClientSize = new Size(t.Layout.Width, _form.ClientSize.Height);
             }
 
@@ -79,20 +90,15 @@ namespace LiteMonitor
             _layout = new UILayout(t);
             _hxLayout = null;
 
-            // [修复1：闪烁问题]
-            // 将 BuildMetrics (耗时操作) 移到设置 BackColor 之前。
-            // 这样在耗时计算期间，界面还保持旧样子，计算完后瞬间变色并重绘内容。
             BuildMetrics();
             BuildHorizontalColumns();
             _layoutDirty = true;
 
-            // 数据准备好后，再设置背景色，紧接着立刻刷新
             _form.BackColor = ThemeManager.ParseColor(t.Color.Background);
 
             _timer.Interval = Math.Max(80, _cfg.RefreshMs);
             _form.Invalidate();
             _form.Update();
-            UIUtils.ClearBrushCache(); 
         }
 
         public void RebuildLayout()

@@ -6,6 +6,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Net.Security; // ★★★ 新增：解决 SslClientAuthenticationOptions 引用 ★★★
 
 namespace LiteMonitor
 {
@@ -16,7 +17,12 @@ namespace LiteMonitor
         {
             PooledConnectionLifetime = TimeSpan.FromMinutes(5), // 连接重用
             PooledConnectionIdleTimeout = TimeSpan.FromMinutes(1),
-            MaxConnectionsPerServer = 32 // 增加到服务器的最大连接数
+            MaxConnectionsPerServer = 32, // 增加到服务器的最大连接数
+            // ★★★ 修复：正确设置忽略 SSL 证书错误 (解决 CS0117 错误) ★★★
+            SslOptions = new SslClientAuthenticationOptions
+            {
+                RemoteCertificateValidationCallback = (sender, cert, chain, sslPolicyErrors) => true
+            }
         })
         {
             Timeout = TimeSpan.FromSeconds(25) // 增加全局超时时间，为下载预留更多时间
@@ -220,7 +226,8 @@ namespace LiteMonitor
             {
                 worker.Add(Task.Run(async () =>
                 {
-                    byte[] buf = new byte[1024 * 1024]; // 1MB缓冲区
+                    // ★★★ 优化：512KB缓冲区（平衡性能与内存）★★★
+                    byte[] buf = new byte[512 * 1024]; 
 
                     while (sw.Elapsed.TotalSeconds < durationSec && !cts.Token.IsCancellationRequested)
                     {
@@ -291,7 +298,12 @@ namespace LiteMonitor
 
             double finalSpeed = Math.Round((totalBytes * 8.0 / 1_000_000) / Math.Max(sw.Elapsed.TotalSeconds, 0.1), 1);
             Log($"Download test completed: {finalSpeed} Mbps, Total: {totalBytes / 1024.0 / 1024.0:F2} MB");
-            
+
+            // ★★★ 优化：强制清理内存 ★★★
+            worker.Clear();
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+
             return finalSpeed;
         }
 
@@ -306,7 +318,8 @@ namespace LiteMonitor
             Log("Starting upload test...");
             Interlocked.Exchange(ref currentBestUploadUrl, UploadSources[0]);
 
-            byte[] payload = new byte[512 * 1024]; // 512KB 负载
+            // ★★★ 优化：上传负载 512KB ★★★
+            byte[] payload = new byte[512 * 1024]; 
             _rng.NextBytes(payload);
 
             long totalBytes = 0;
@@ -352,8 +365,6 @@ namespace LiteMonitor
                         string url = currentBestUploadUrl + Rand();
                         try
                         {
-                           
-                            
                             var content = new ByteArrayContent(payload);
                             content.Headers.ContentType = contentType;
                             
@@ -409,6 +420,11 @@ namespace LiteMonitor
 
             double finalSpeed = Math.Round((totalBytes * 8.0 / 1_000_000) / Math.Max(sw.Elapsed.TotalSeconds, 0.1), 1);
             Log($"Upload test completed: {finalSpeed} Mbps, Total: {totalBytes / 1024.0 / 1024.0:F2} MB");
+
+            // ★★★ 优化：强制清理内存 ★★★
+            worker.Clear();
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
             
             return finalSpeed;
         }

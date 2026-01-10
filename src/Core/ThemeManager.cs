@@ -161,17 +161,11 @@ namespace LiteMonitor.src.Core
             try
             {
                 var style = Font.Bold ? FontStyle.Bold : FontStyle.Regular;
-
-                // ⚠️ 不再做任何缩放，保留"基础字体"
                 FontTitle = new Font(Font.Family, (float)Font.Title, style);
                 FontGroup = new Font(Font.Family, (float)Font.Group, style);
                 FontItem = new Font(Font.Family, (float)Font.Item, style);
-                // FontTaskbar 现在从 Settings 中动态构建，不再硬编码
-
-                var valueFamily = string.IsNullOrWhiteSpace(Font.ValueFamily)
-                    ? Font.Family
-                    : Font.ValueFamily;
-
+                
+                var valueFamily = string.IsNullOrWhiteSpace(Font.ValueFamily) ? Font.Family : Font.ValueFamily;
                 FontValue = new Font(valueFamily, (float)Font.Value, style);
             }
             catch
@@ -181,24 +175,30 @@ namespace LiteMonitor.src.Core
         }
         public void Scale(float dpiScale, float userScale)
         {
-            // 布局用 dpi × user
             Layout.LayoutScale = dpiScale * userScale;
             Layout.Scale(Layout.LayoutScale);
 
-            // 字体只用 userScale：“补”用户缩放，不再自己乘 DPI
             var style = Font.Bold ? FontStyle.Bold : FontStyle.Regular;
-            var valueFamily = string.IsNullOrWhiteSpace(Font.ValueFamily)
-                ? Font.Family
-                : Font.ValueFamily;
-
+            var valueFamily = string.IsNullOrWhiteSpace(Font.ValueFamily) ? Font.Family : Font.ValueFamily;
             float f = userScale <= 0 ? 1.0f : userScale;
 
+            // ★★★ 关键：先销毁旧的缩放字体，防止句柄泄露 ★★★
+            DisposeFonts(); 
+
+            // 创建新比例的字体
             FontTitle = new Font(Font.Family, (float)Font.Title * f, style);
             FontGroup = new Font(Font.Family, (float)Font.Group * f, style);
             FontItem = new Font(Font.Family, (float)Font.Item * f, style);
             FontValue = new Font(valueFamily, (float)Font.Value * f, style);
         }
-
+        public void DisposeFonts()
+        {
+            // 只有非系统字体才需要 Dispose
+            if (FontTitle != null && !FontTitle.IsSystemFont) FontTitle.Dispose();
+            if (FontGroup != null && !FontGroup.IsSystemFont) FontGroup.Dispose();
+            if (FontItem != null && !FontItem.IsSystemFont) FontItem.Dispose();
+            if (FontValue != null && !FontValue.IsSystemFont) FontValue.Dispose();
+        }
 
     }
 
@@ -265,6 +265,15 @@ namespace LiteMonitor.src.Core
 
                 if (theme == null)
                     throw new Exception("Theme parse failed.");
+                
+                if (theme.Font != null)
+                {
+                    theme.Font.Family = UIUtils.Intern(theme.Font.Family);
+                    if (!string.IsNullOrEmpty(theme.Font.ValueFamily))
+                    {
+                        theme.Font.ValueFamily = UIUtils.Intern(theme.Font.ValueFamily);
+                    }
+                }
                 // 构建运行期字体
                 theme.BuildFonts();
 

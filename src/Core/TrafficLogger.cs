@@ -24,6 +24,9 @@ namespace LiteMonitor.src.Core
     {
         private static readonly string _filePath = Path.Combine(AppContext.BaseDirectory, "TrafficHistory.json");
         private static readonly object _ioLock = new object(); // 文件锁
+        // ====== 新增缓存字段 ======
+        private static DateTime _cachedDate;
+        private static string _cachedDateKey;
 
         public static TrafficData Data { get; private set; } = new TrafficData();
 
@@ -65,7 +68,16 @@ namespace LiteMonitor.src.Core
         // 核心：累加数据
         public static void AddTraffic(long upBytes, long downBytes)
         {
-            string key = UIUtils.Intern(DateTime.Today.ToString("yyyy-MM-dd"));
+            // 优化：只有日期变更时才重新 Format 和 Intern
+            if (DateTime.Today != _cachedDate)
+            {
+                _cachedDate = DateTime.Today;
+                // 此时才调用 ToString 和 Intern
+                _cachedDateKey = UIUtils.Intern(_cachedDate.ToString("yyyy-MM-dd"));
+            }
+            
+            // 使用缓存的 Key
+            string key = _cachedDateKey;
 
             // 线程安全注意：虽然 UI 读取和 Update 写入可能并发，但 Dictionary 非线程安全。
             // 考虑到冲突概率极低（UI 只读，Update 只写），暂不加重锁，或者简单加锁：
@@ -84,7 +96,12 @@ namespace LiteMonitor.src.Core
         // 获取今日数据 (供 UI 显示)
         public static (long up, long down) GetTodayStats()
         {
-            string key = UIUtils.Intern(DateTime.Today.ToString("yyyy-MM-dd"));
+            if (DateTime.Today != _cachedDate)
+            {
+                _cachedDate = DateTime.Today;
+                _cachedDateKey = UIUtils.Intern(_cachedDate.ToString("yyyy-MM-dd"));
+            }
+            string key = _cachedDateKey;
             lock (Data)
             {
                 if (Data.History.TryGetValue(key, out var rec))
@@ -94,8 +111,6 @@ namespace LiteMonitor.src.Core
             }
             return (0, 0);
         }
-
-        // TrafficLogger.cs
 
         // [新增] 删除指定日期的记录
         public static void RemoveRecord(string dateKey)

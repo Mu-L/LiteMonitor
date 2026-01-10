@@ -1,5 +1,4 @@
 ﻿using System.Drawing.Drawing2D;
-using System.Text.RegularExpressions;
 using System.Collections.Generic; // 补全引用
 using System.Drawing; // 补全引用
 using System.Linq; // 补全引用
@@ -56,6 +55,7 @@ namespace LiteMonitor.src.Core
         // ============================================================
         private static readonly Dictionary<string, SolidBrush> _brushCache = new(16);
         private static readonly object _brushLock = new object(); // 🔒 线程锁
+        private static readonly Dictionary<string, Font> _fontCache = new(16); // 字体缓存
         private const int MAX_BRUSH_CACHE = 32;
 
         /// <summary>
@@ -101,6 +101,9 @@ namespace LiteMonitor.src.Core
             {
                 foreach (var b in _brushCache.Values) b.Dispose();
                 _brushCache.Clear();
+                
+                foreach (var f in _fontCache.Values) f.Dispose();
+                _fontCache.Clear();
             }
         }
 
@@ -236,29 +239,47 @@ namespace LiteMonitor.src.Core
         {
             if (string.IsNullOrWhiteSpace(value)) return value;
 
-            // 1. 去掉 "/s" (省空间)
-            value = value.Replace("/s", "", StringComparison.OrdinalIgnoreCase).Trim();
+            // 1. 快速预处理
+            // 这里的 Replace 虽然也产生新字符串，但比 Regex 轻量。
+            // 如果追求极致，可以在 FormatValue 阶段就处理好，但这里先不动架构。
+            string clean = value.Replace("/s", "").Trim();
 
-            // 2. 拆分解析数值和单位 ，过滤非数字+单位的字符
-            // ★★★ 修复：支持数字和单位之间有空格的情况 ★★★
-            var m = Regex.Match(value, @"^([\d.]+)\s*([A-Za-z%°℃]+)$");
-            if (!m.Success) return value;
-
-            double num = double.Parse(m.Groups[1].Value);
-            string unit = m.Groups[2].Value;
-
-            // 3. 智能缩略：如果数字过大 (>=100)，去掉小数位
-            // 例如: "123.4MB" -> "123MB", "99.5MB" -> "99.5MB"
-            // ★★★ 新增：风扇单位特殊处理（横屏/任务栏模式不显示 RPM） ★★★
-            if (unit.Equals("RPM", StringComparison.OrdinalIgnoreCase))
+            // 2. 手动寻找数字与单位的分界线 (替代 Regex)
+            int splitIndex = -1;
+            for (int i = 0; i < clean.Length; i++)
             {
-                // 仅显示数字，不显示单位
-                return ((int)Math.Round(num)).ToString() + "R";
+                char c = clean[i];
+                // 遇到第一个非数字且非小数点的字符，就是单位的开始
+                if (!char.IsDigit(c) && c != '.' && c != '-') 
+                {
+                    splitIndex = i;
+                    break;
+                }
             }
 
-            return num >= 100
-                ? ((int)Math.Round(num)) + unit
-                : num.ToString("0.0") + unit;
+            // 如果没找到单位，或没有数字，直接返回
+            if (splitIndex <= 0) return clean;
+
+            // 3. 分割字符串
+            string numStr = clean.Substring(0, splitIndex);
+            string unit = clean.Substring(splitIndex).Trim();
+
+            // 4. 解析数值
+            if (double.TryParse(numStr, out double num))
+            {
+                // ★★★ 风扇单位特殊处理 ★★★
+                if (unit.Equals("RPM", StringComparison.OrdinalIgnoreCase))
+                {
+                    return ((int)Math.Round(num)).ToString() + "R";
+                }
+
+                // 智能缩略：>=100 去掉小数
+                return num >= 100
+                    ? ((int)Math.Round(num)) + unit
+                    : numStr + unit; // 如果原本就是 12.5，直接用原字符串拼接，避免 ToString 再次由浮点误差导致变动
+            }
+
+            return clean;
         }
 
         // ============================================================
@@ -529,5 +550,30 @@ namespace LiteMonitor.src.Core
 
         // 浮点数转显示字符串（统一格式）
         public static string ToStr(double v, string format = "F1") => v.ToString(format);
+
+        // 3. 在类末尾（或其他合适位置）添加 GetFont 方法
+        // ====== 新增整个方法 ======
+        public static Font GetFont(string familyName, float size, bool bold)
+        {
+            string key = $"{familyName}_{size}_{bold}";
+            lock (_brushLock) // 复用锁
+            {
+                if (!_fontCache.TryGetValue(key, out var font))
+                {
+                    try 
+                    {
+                        var style = bold ? FontStyle.Bold : FontStyle.Regular;
+                        font = new Font(familyName, size, style);
+                    }
+                    catch
+                    {
+                        // 兜底：防止字体不存在导致崩溃
+                        font = new Font(SystemFonts.DefaultFont.FontFamily, size, bold ? FontStyle.Bold : FontStyle.Regular);
+                    }
+                    _fontCache[key] = font;
+                }
+                return font;
+            }
+        }
     }
 }

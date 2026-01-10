@@ -26,6 +26,11 @@ namespace LiteMonitor.src.SystemServices
         private readonly HardwareValueProvider _valueProvider;
 
         private readonly Dictionary<string, float> _lastValidMap = new();
+        
+        // ★★★ 优化：增加 UI 列表缓存，防止重复分配字符串 ★★★
+        private List<string>? _cachedFanList = null; 
+        private List<string>? _cachedNetworkList = null; // 网卡列表缓存
+        private List<string>? _cachedDiskList = null;    // 硬盘列表缓存
 
         private DateTime _lastTrafficTime = DateTime.Now;
         private DateTime _lastTrafficSave = DateTime.Now;
@@ -189,6 +194,11 @@ namespace LiteMonitor.src.SystemServices
                     _diskManager.ClearCache();
                     _sensorMap.Clear();
                     
+                    // ★★★ 新增：清理 UI 列表缓存 ★★★
+                    _cachedFanList = null;
+                    _cachedNetworkList = null;
+                    _cachedDiskList = null;
+
                     // 2. ★★★ 清理字符串池 (配合 UIUtils 的新功能) ★★★
                     UIUtils.ClearStringPool();
 
@@ -269,14 +279,44 @@ namespace LiteMonitor.src.SystemServices
             _diskManager.ClearCache(); // 漏掉的，补上
         }
         
-        // 静态辅助方法 (UI用)
-        public static List<string> ListAllNetworks() => Instance?._computer.Hardware.Where(h => h.HardwareType == HardwareType.Network).Select(h => h.Name).Distinct().ToList() ?? new List<string>();
-        public static List<string> ListAllDisks() => Instance?._computer.Hardware.Where(h => h.HardwareType == HardwareType.Storage).Select(h => h.Name).Distinct().ToList() ?? new List<string>();
+        // ★★★ 优化：使用缓存 + Intern，防止生成重复字符串 ★★★
+        public static List<string> ListAllNetworks() 
+        {
+            if (Instance == null) return new List<string>();
+            if (Instance._cachedNetworkList != null) return Instance._cachedNetworkList;
+
+            var list = Instance._computer.Hardware
+                .Where(h => h.HardwareType == HardwareType.Network)
+                .Select(h => UIUtils.Intern(h.Name)) // 强制驻留
+                .Distinct()
+                .ToList();
+            
+            Instance._cachedNetworkList = list;
+            return list;
+        }
+
+        // ★★★ 优化：使用缓存 + Intern，防止生成重复字符串 ★★★
+        public static List<string> ListAllDisks() 
+        {
+            if (Instance == null) return new List<string>();
+            if (Instance._cachedDiskList != null) return Instance._cachedDiskList;
+
+            var list = Instance._computer.Hardware
+                .Where(h => h.HardwareType == HardwareType.Storage)
+                .Select(h => UIUtils.Intern(h.Name)) // 强制驻留
+                .Distinct()
+                .ToList();
+
+            Instance._cachedDiskList = list;
+            return list;
+        }
         
        // 列出所有风扇 (黑名单机制：排除干扰项，允许 USB/Cooler)
         public static List<string> ListAllFans()
         {
             if (Instance == null) return new List<string>();
+            if (Instance._cachedFanList != null) return Instance._cachedFanList; // 优先读缓存
+            
             var list = new List<string>();
 
             // 辅助递归函数
@@ -301,7 +341,9 @@ namespace LiteMonitor.src.SystemServices
                         if (s.SensorType == SensorType.Fan)
                         {
                             // 格式化名称：传感器名[硬件名] 
-                            list.Add($"{s.Name} [{hw.Name}]");
+                            // ★★★ 强制驻留：确保生成的 "Fan #1 [SuperIO]" 只在内存存一份 ★★★
+                            string fullName = UIUtils.Intern($"{s.Name} [{hw.Name}]");
+                            list.Add(fullName);
                         }
                     }
                 }
@@ -321,7 +363,9 @@ namespace LiteMonitor.src.SystemServices
             
             // 排序并去重
             list.Sort(); 
-            return list.Distinct().ToList();
+            // 存入缓存
+            Instance._cachedFanList = list.Distinct().ToList();
+            return Instance._cachedFanList;
         }
 
         private static IEnumerable<ISensor> GetAllSensors(IHardware hw, SensorType type)

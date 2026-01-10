@@ -32,14 +32,8 @@ namespace LiteMonitor
         // ★★★ [新增] 极简的核心：手动刷新缓存 ★★★
         // 在 UIController 初始化或配置变更时调用它
         public static void ReloadStyle(Settings cfg)
-        {
-            // 1. 释放旧字体
-            _cachedFont?.Dispose();
-
-            // 2. 创建新字体 (使用传入的最新 cfg)
-            var style = cfg.TaskbarFontBold ? FontStyle.Bold : FontStyle.Regular;
-            _cachedFont = new Font(cfg.TaskbarFontFamily, cfg.TaskbarFontSize, style);
-
+        {     
+            _cachedFont = UIUtils.GetFont(cfg.TaskbarFontFamily, cfg.TaskbarFontSize, cfg.TaskbarFontBold);
             // ★★★ [新增] 读取自定义颜色配置 ★★★
             _useCustom = cfg.TaskbarCustomStyle;
             if (_useCustom)

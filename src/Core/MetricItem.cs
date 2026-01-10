@@ -15,12 +15,13 @@ namespace LiteMonitor
     {
         private string _key = "";
         
-        // ★★★ 修复：强制驻留字符串，消除重复的 "CPU.CLOCK" 等实例 ★★★
+        // [保留优化] 强制驻留字符串
         public string Key 
         { 
             get => _key;
             set => _key = UIUtils.Intern(value); 
         }
+
         private string _label = "";
         public string Label 
         {
@@ -28,7 +29,7 @@ namespace LiteMonitor
             set => _label = UIUtils.Intern(value);
         }
         
-        // ★★★ 新增：缓存短标签 (用于任务栏/横屏模式) ★★★
+        // [保留优化] 缓存短标签
         private string _shortLabel = "";
         public string ShortLabel 
         {
@@ -40,7 +41,7 @@ namespace LiteMonitor
         public float DisplayValue { get; set; } = 0f;
 
         // =============================
-        // ★★★ 新增：缓存字段 ★★★
+        // [保留优化] 缓存字段
         // =============================
         private float _cachedDisplayValue = -99999f; // 上一次格式化时的数值
         private string _cachedNormalText = "";       // 缓存竖屏文本
@@ -52,45 +53,33 @@ namespace LiteMonitor
         /// <param name="isHorizontal">是否为横屏/任务栏模式（需要极简格式）</param>
         public string GetFormattedText(bool isHorizontal)
         {
-            // 1. 检查数值变化是否足以触发重新格式化
-            // 阈值设为 0.05f 配合 FormatValue 的 "0.0" 格式，避免显示内容没变但重绘了字符串
+            // [保留优化] 阈值检查：防止浮点数微小抖动导致重绘
             if (Math.Abs(DisplayValue - _cachedDisplayValue) > 0.05f)
             {
-                // 更新缓存基准值
                 _cachedDisplayValue = DisplayValue;
 
-                // 2. 重新生成基础字符串 (竖屏用)
-                // 这一步避免了每帧调用 float.ToString()
+                // 1. 重新生成基础字符串
                 _cachedNormalText = UIUtils.FormatValue(Key, DisplayValue);
 
-                // 3. 标记横屏缓存失效 (惰性更新，或立即更新)
-                // 由于 FormatHorizontalValue 包含正则，开销大，我们只在基础文本变化后才重算
+                // 2. 重新生成横屏字符串
+                // 配合 UIUtils.FormatHorizontalValue 的去正则优化，这里效率极高
                 _cachedHorizontalText = UIUtils.FormatHorizontalValue(_cachedNormalText);
             }
 
-            // 4. 根据模式返回对应的缓存
+            // 返回对应模式的缓存
             return isHorizontal ? _cachedHorizontalText : _cachedNormalText;
         }
 
         // =============================
         // 布局数据 (由 UILayout 计算填充)
         // =============================
-        
-        /// <summary>
-        /// 渲染风格
-        /// </summary>
         public MetricRenderStyle Style { get; set; } = MetricRenderStyle.StandardBar;
-
-        /// <summary>
-        /// 整个项目的边界（用于鼠标交互或调试）
-        /// </summary>
         public Rectangle Bounds { get; set; } = Rectangle.Empty;
 
-        // --- 内部组件区域 ---
-        public Rectangle LabelRect;   // 标签文本区域
-        public Rectangle ValueRect;   // 数值文本区域
-        public Rectangle BarRect;     // 进度条区域 (仅 StandardBar 有效)
-        public Rectangle BackRect;    // 背景区域 (用于圆角矩形等)
+        public Rectangle LabelRect;   
+        public Rectangle ValueRect;   
+        public Rectangle BarRect;     
+        public Rectangle BackRect;    
 
         /// <summary>
         /// 平滑更新显示值
@@ -101,8 +90,10 @@ namespace LiteMonitor
             float target = Value.Value;
             float diff = Math.Abs(target - DisplayValue);
 
+            // 忽略极小的变化，防止动画抖动
             if (diff < 0.05f) return;
 
+            // 距离过大或速度过快时直接跳转
             if (diff > 15f || speed >= 0.9)
                 DisplayValue = target;
             else
