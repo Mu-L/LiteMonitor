@@ -14,15 +14,48 @@ namespace LiteMonitor
         static void Main()
         {
             // =================================================================
-            // ★★★ 1. 单实例互斥锁 (静默退出版) ★★★
+            // ★★★ 1. 单实例互斥锁 (基于文件路径的版本) ★★★
             // =================================================================
-            // 这里的字符串建议保持唯一，可以用 GUID，也可以用你的软件名
-            const string mutexName = "Global\\LiteMonitor_SingleInstance_Mutex_UniqueKey";
             bool createNew;
+            string mutexName;
 
-            // 尝试创建/获取锁
-            // out createNew: 如果是第一个创建的，返回 true；如果锁已存在，返回 false
-            _mutex = new Mutex(true, mutexName, out createNew);
+            try
+            {
+                // 获取当前程序的可执行文件路径
+                string exePath = System.Reflection.Assembly.GetEntryAssembly()?.Location;
+
+                if (string.IsNullOrEmpty(exePath))
+                {
+                    // 如果无法获取程序路径，使用默认的全局唯一 Key
+                    mutexName = "Global\\LiteMonitor_SingleInstance_Mutex_UniqueKey";
+                }
+                else
+                {
+                    // 获取程序所在的文件夹路径
+                    string appFolderPath = Path.GetDirectoryName(exePath);
+
+                    // 1. 统一转小写 (Windows路径不区分大小写，避免 C:\App 和 c:\app 被识别为不同实例)
+                    // 2. 将路径中的特殊字符（特别是反斜杠）替换为下划线，因为 Mutex 名称中不能包含 '\' (除了 Global\)
+                    string sanitizedPath = appFolderPath?.ToLower()
+                                                        .Replace('\\', '_')
+                                                        .Replace(':', '_')
+                                                        .Replace('/', '_')
+                                                        .Replace(' ', '_');
+
+                    // 创建基于文件夹路径的互斥锁名称
+                    mutexName = $"Global\\LiteMonitor_SingleInstance_{sanitizedPath}_Mutex";
+                }
+
+                // 尝试创建/获取锁
+                // out createNew: 如果是第一个创建的，返回 true；如果锁已存在，返回 false
+                _mutex = new Mutex(true, mutexName, out createNew);
+            }
+            catch
+            {
+                // 如果路径获取或处理出现异常，回退到原来的逻辑，保证程序至少能以单实例模式运行
+                mutexName = "Global\\LiteMonitor_SingleInstance_Mutex_UniqueKey";
+                _mutex = new Mutex(true, mutexName, out createNew);
+            }
 
             if (!createNew)
             {
