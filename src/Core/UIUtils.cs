@@ -109,11 +109,13 @@ namespace LiteMonitor.src.Core
         // ============================================================
         public static string FormatValue(string key, float? raw)
         {
-            string k = key.ToUpperInvariant();
+            // ★★★ 优化：消除 ToUpperInvariant，改用 IndexOf 忽略大小写 ★★★
+            // string k = key.ToUpperInvariant();
             float v = raw ?? 0.0f;
 
             // 1. 内存/显存特殊显示逻辑 (必须放在第一位)
-            if (k.Contains("MEM") || k.Contains("VRAM"))
+            if (key.IndexOf("MEM", StringComparison.OrdinalIgnoreCase) >= 0 || 
+                key.IndexOf("VRAM", StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 // 1. 读取配置 (注意：此处 Settings.Load() 现在是单例极速模式)
                 var cfg = Settings.Load();
@@ -123,8 +125,8 @@ namespace LiteMonitor.src.Core
                 {
                     double totalGB = 0;
                     // 获取对应的总容量 (从 Settings 静态变量)
-                    if (k.Contains("MEM")) totalGB = Settings.DetectedRamTotalGB;
-                    else if (k.Contains("VRAM")) totalGB = Settings.DetectedGpuVramTotalGB;
+                    if (key.IndexOf("MEM", StringComparison.OrdinalIgnoreCase) >= 0) totalGB = Settings.DetectedRamTotalGB;
+                    else if (key.IndexOf("VRAM", StringComparison.OrdinalIgnoreCase) >= 0) totalGB = Settings.DetectedGpuVramTotalGB;
 
                     // 只有当探测到了有效容量时，才进行转换
                     if (totalGB > 0)
@@ -145,33 +147,35 @@ namespace LiteMonitor.src.Core
             }
 
             // 2. 百分比类 (Load)
-            if (k.Contains("LOAD"))
+            if (key.IndexOf("LOAD", StringComparison.OrdinalIgnoreCase) >= 0)
                 return $"{v:0.0}%";
 
             // 2. 温度类
-            if (k.Contains("TEMP"))
+            if (key.IndexOf("TEMP", StringComparison.OrdinalIgnoreCase) >= 0)
                 return $"{v:0.0}°C";
 
             // ★★★ [新增] 风扇支持 ★★★
-            if (k.Contains("FAN") || k.Contains("PUMP")) return $"{v:0} RPM";
+            if (key.IndexOf("FAN", StringComparison.OrdinalIgnoreCase) >= 0 || 
+                key.IndexOf("PUMP", StringComparison.OrdinalIgnoreCase) >= 0) return $"{v:0} RPM";
 
             // 3. 频率类 (GHz / MHz)
-            if (k.Contains("CLOCK"))
+            if (key.IndexOf("CLOCK", StringComparison.OrdinalIgnoreCase) >= 0)
                 // 逻辑优化：>=1000MHz 显示 GHz，否则显示 MHz
                 //return v >= 1000 ? $"{v / 1000.0:F1}GHz" : $"{v:F0}MHz";
                 return $"{v / 1000.0:F1}GHz";
 
             // 4. 功耗类 (W)
-            if (k.Contains("POWER"))
+            if (key.IndexOf("POWER", StringComparison.OrdinalIgnoreCase) >= 0)
                 return $"{v:F0}W";
 
             // 5. 流量/速率类 (NET / DISK / DATA)
             // 复用 FormatDataSize 算法
-            if (k.StartsWith("NET") || k.StartsWith("DISK"))
+            if (key.StartsWith("NET", StringComparison.OrdinalIgnoreCase) || 
+                key.StartsWith("DISK", StringComparison.OrdinalIgnoreCase))
                 return FormatDataSize(v, "/s"); // 速率带 /s
 
 
-            if (k.StartsWith("DATA"))
+            if (key.StartsWith("DATA", StringComparison.OrdinalIgnoreCase))
                 return FormatDataSize(v, "");   // 总量不带 /s
 
             return $"{v:0.0}";
@@ -218,7 +222,7 @@ namespace LiteMonitor.src.Core
             }
             else
             {
-                // 强制指定位数 (如 "0.0", "0.00")
+                // 强制指个位数 (如 "0.0", "0.00")
                 format = "0." + new string('0', decimals);
             }
 
@@ -279,11 +283,15 @@ namespace LiteMonitor.src.Core
         {
             if (double.IsNaN(value)) return 0;
 
-            string k = key.ToUpperInvariant();
+            // ★★★ 优化：消除 ToUpperInvariant，改用 IndexOf 忽略大小写 ★★★
+            // string k = key.ToUpperInvariant();
 
             // 1. Adaptive (频率/功耗要转化成使用率数值)
             // ★★★ [新增] 风扇支持 ★★★
-            if (k.Contains("CLOCK") || k.Contains("POWER") || k.Contains("FAN") || k.Contains("PUMP"))
+            if (key.IndexOf("CLOCK", StringComparison.OrdinalIgnoreCase) >= 0 || 
+                key.IndexOf("POWER", StringComparison.OrdinalIgnoreCase) >= 0 || 
+                key.IndexOf("FAN", StringComparison.OrdinalIgnoreCase) >= 0 || 
+                key.IndexOf("PUMP", StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 value = GetAdaptivePercentage(key, value) * 100;
             }
@@ -292,7 +300,9 @@ namespace LiteMonitor.src.Core
             var (warn, crit) = GetThresholds(key); // GetThresholds 内部已处理 NET/DISK 分离
 
             // 3.NET/DISK 特殊处理：将 B/s 转换为 KB/s
-            if (k.StartsWith("NET") || k.StartsWith("DISK") || k.Contains("DATA"))
+            if (key.StartsWith("NET", StringComparison.OrdinalIgnoreCase) || 
+                key.StartsWith("DISK", StringComparison.OrdinalIgnoreCase) || 
+                key.IndexOf("DATA", StringComparison.OrdinalIgnoreCase) >= 0)
                 value /= 1024.0 * 1024.0;
 
             if (value >= crit) return 2; // Crit
@@ -308,33 +318,40 @@ namespace LiteMonitor.src.Core
         public static (double warn, double crit) GetThresholds(string key)
         {
             var cfg = Settings.Load();
-            string k = key.ToUpperInvariant();
+            // ★★★ 优化：消除 ToUpperInvariant，改用 IndexOf 忽略大小写 ★★★
+            // string k = key.ToUpperInvariant();
             var th = cfg.Thresholds;
 
             // Load, VRAM, Mem，CLOCK/POWER，★ FAN
-            if (k.Contains("LOAD") || k.Contains("VRAM") || k.Contains("MEM") || k.Contains("CLOCK") || k.Contains("POWER") || k.Contains("FAN") || k.Contains("PUMP"))
+            if (key.IndexOf("LOAD", StringComparison.OrdinalIgnoreCase) >= 0 || 
+                key.IndexOf("VRAM", StringComparison.OrdinalIgnoreCase) >= 0 || 
+                key.IndexOf("MEM", StringComparison.OrdinalIgnoreCase) >= 0 || 
+                key.IndexOf("CLOCK", StringComparison.OrdinalIgnoreCase) >= 0 || 
+                key.IndexOf("POWER", StringComparison.OrdinalIgnoreCase) >= 0 || 
+                key.IndexOf("FAN", StringComparison.OrdinalIgnoreCase) >= 0 || 
+                key.IndexOf("PUMP", StringComparison.OrdinalIgnoreCase) >= 0)
                 return (th.Load.Warn, th.Load.Crit);
 
             // Temp
-            if (k.Contains("TEMP"))
+            if (key.IndexOf("TEMP", StringComparison.OrdinalIgnoreCase) >= 0)
                 return (th.Temp.Warn, th.Temp.Crit);
 
             // Disk R/W (共享阈值)
-            if (k.StartsWith("DISK"))
+            if (key.StartsWith("DISK", StringComparison.OrdinalIgnoreCase))
                 return (th.DiskIOMB.Warn, th.DiskIOMB.Crit);
 
             // NET Up/Down (分离阈值)
-            if (k.StartsWith("NET"))
+            if (key.StartsWith("NET", StringComparison.OrdinalIgnoreCase))
             {
-                if (k.Contains("UP"))
+                if (key.IndexOf("UP", StringComparison.OrdinalIgnoreCase) >= 0)
                     return (th.NetUpMB.Warn, th.NetUpMB.Crit);
                 else // NET.DOWN
                     return (th.NetDownMB.Warn, th.NetDownMB.Crit);
             }
 
-            if (k.Contains("DATA"))
+            if (key.IndexOf("DATA", StringComparison.OrdinalIgnoreCase) >= 0)
             {
-                if (k.Contains("UP"))
+                if (key.IndexOf("UP", StringComparison.OrdinalIgnoreCase) >= 0)
                     return (th.DataUpMB.Warn, th.DataUpMB.Crit);
                 else // DATA.DOWN
                     return (th.DataDownMB.Warn, th.DataDownMB.Crit);
@@ -410,13 +427,17 @@ namespace LiteMonitor.src.Core
             // =========================================================
             // ★★★ 优化核心：一次计算，两处使用 ★★★
             // =========================================================
-            string k = key.ToUpperInvariant();
+            // ★★★ 优化：消除 ToUpperInvariant，改用 IndexOf 忽略大小写 ★★★
+            // string k = key.ToUpperInvariant();
             double percent;
 
             // A. 统一计算进度百分比 (0.0 ~ 1.0)
             // ---------------------------------------------------------
             // ★★★ [新增] 风扇支持 ★★★
-            if (k.Contains("CLOCK") || k.Contains("POWER") || k.Contains("FAN") || k.Contains("PUMP"))
+            if (key.IndexOf("CLOCK", StringComparison.OrdinalIgnoreCase) >= 0 || 
+                key.IndexOf("POWER", StringComparison.OrdinalIgnoreCase) >= 0 || 
+                key.IndexOf("FAN", StringComparison.OrdinalIgnoreCase) >= 0 || 
+                key.IndexOf("PUMP", StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 // 复用 GetAdaptivePercentage (内部封装了读取 Settings 和 Max 的逻辑)
                 // 避免了在 DrawBar 里重写一遍 Settings 读取代码
