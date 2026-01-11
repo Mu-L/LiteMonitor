@@ -116,7 +116,7 @@ namespace LiteMonitor.src.UI.SettingsPage
             var group = new LiteSettingsGroup(LanguageManager.T("Menu.HardwareSettings"));
             string strAuto = LanguageManager.T("Menu.Auto");
             //  系统CPU算法
-            AddBool(group, "Menu.UseSystemCpuLoad", () => Config.UseSystemCpuLoad, v => Config.UseSystemCpuLoad = v);
+            AddBool(group, "Menu.UseWinPerCounters", () => Config.UseWinPerCounters, v => Config.UseWinPerCounters = v);
             
             // 刷新率
             int[] rates = { 100, 200, 300, 500, 600, 700, 800, 1000, 1500, 2000, 3000 };
@@ -127,7 +127,7 @@ namespace LiteMonitor.src.UI.SettingsPage
                     Config.RefreshMs = val < 50 ? 1000 : val;
                 }
             );
-            group.AddFullItem(new LiteNote(LanguageManager.T("Menu.UseSystemCpuLoadTip"), 0));
+            group.AddFullItem(new LiteNote(LanguageManager.T("Menu.UseWinPerCountersTip"), 0));
 
             // 1. 磁盘源
             var disks = HardwareMonitor.ListAllDisks();

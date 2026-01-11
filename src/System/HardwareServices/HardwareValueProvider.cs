@@ -17,14 +17,12 @@ namespace LiteMonitor.src.SystemServices
         private readonly DiskManager _diskManager;
         private readonly object _lock;
         private readonly Dictionary<string, float> _lastValidMap; 
+        
+        // ★★★ [新增] 性能计数器管理器 ★★★
+        private readonly PerformanceCounterManager _perfManager;
 
-        // 系统计数器
-        private PerformanceCounter? _cpuPerfCounter;
-        private float _lastSystemCpuLoad = 0f;
-
-        // ★★★ [新增] 错误重试计数器，防止无限重建 ★★★
-        private int _perfCounterErrorCount = 0;
-        private DateTime _lastPerfCounterRetry = DateTime.MinValue;
+        // [删除] 原有的系统计数器字段 (_cpuPerfCounter, _lastSystemCpuLoad 等)
+        // [删除] 错误重试计数器字段
 
         // ★★★ [新增] Tick 级智能缓存 (防止同帧重复计算) ★★★
         private readonly Dictionary<string, float> _tickCache = new();
@@ -33,13 +31,14 @@ namespace LiteMonitor.src.SystemServices
         // 缓存住找到的 ISensor 对象，彻底消除每秒的字符串解析和遍历开销
         private readonly Dictionary<string, (ISensor Sensor, string ConfigSource)> _manualSensorCache = new();
 
-        public HardwareValueProvider(Computer c, Settings s, SensorMap map, NetworkManager net, DiskManager disk, object syncLock, Dictionary<string, float> lastValid)
+        public HardwareValueProvider(Computer c, Settings s, SensorMap map, NetworkManager net, DiskManager disk, PerformanceCounterManager perfManager, object syncLock, Dictionary<string, float> lastValid)
         {
             _computer = c;
             _cfg = s;
             _sensorMap = map;
             _networkManager = net;
             _diskManager = disk;
+            _perfManager = perfManager; // ★★★ [新增] 赋值 ★★★
             _lock = syncLock;
             _lastValidMap = lastValid;
         }
@@ -56,55 +55,8 @@ namespace LiteMonitor.src.SystemServices
             // ★★★ [新增] 每一轮更新开始时，清空本轮缓存 ★★★
             _tickCache.Clear();
 
-            if (_cfg.UseSystemCpuLoad)
-            {
-                // ★★★ [优化] 智能重试机制：失败 10 次后，每 30 秒才重试一次 ★★★
-                if (_cpuPerfCounter == null)
-                {
-                    if (_perfCounterErrorCount > 10 && (DateTime.Now - _lastPerfCounterRetry).TotalSeconds < 30)
-                        return; // 冷却中，跳过
-
-                    try 
-                    { 
-                        _cpuPerfCounter = new PerformanceCounter("Processor Information", "% Processor Utility", "_Total"); 
-                        _lastPerfCounterRetry = DateTime.Now;
-                    }
-                    catch 
-                    {
-                        try 
-                        { 
-                            _cpuPerfCounter = new PerformanceCounter("Processor", "% Processor Time", "_Total"); 
-                            _lastPerfCounterRetry = DateTime.Now;
-                        }
-                        catch { _perfCounterErrorCount++; }
-                    }
-                    if (_cpuPerfCounter != null) 
-                    {
-                         try { _cpuPerfCounter.NextValue(); _perfCounterErrorCount = 0; } catch { }
-                    }
-                }
-
-                if (_cpuPerfCounter != null)
-                {
-                    try
-                    {
-                        float rawVal = _cpuPerfCounter.NextValue();
-                        if (rawVal > 100f) rawVal = 100f;
-                        _lastSystemCpuLoad = rawVal;
-                        _perfCounterErrorCount = 0; // 成功则重置错误计数
-                    }
-                    catch 
-                    { 
-                        _cpuPerfCounter.Dispose(); 
-                        _cpuPerfCounter = null; 
-                        _perfCounterErrorCount++; 
-                    }
-                }
-            }
-            else
-            {
-                if (_cpuPerfCounter != null) { _cpuPerfCounter.Dispose(); _cpuPerfCounter = null; }
-            }
+            // [删除] 旧的 UpdateSystemCpuCounter 逻辑全部移除
+            // Manager 现在会自动处理 NextValue
         }
 
 
@@ -120,17 +72,26 @@ namespace LiteMonitor.src.SystemServices
 
             // 定义临时结果变量
             float? result = null;
+            
+            // ★★★ [核心逻辑] 全局开关判断：只有当开关开启，且管理器已初始化成功时，才尝试走计数器 ★★★
+            // 这里的 UseWindowsPerformanceCounters 对应 Step 1 中 Settings 新增的属性
+            bool useCounter = _cfg.UseWinPerCounters && _perfManager.IsInitialized;
 
             // ★★★ [终极优化] 使用 switch 替代 if-else 链，实现 O(1) 哈希跳转 ★★★
             switch (key)
             {
                 // 1. CPU.Load
                 case "CPU.Load":
-                    if (_cfg.UseSystemCpuLoad)
+                    // A. 尝试走计数器
+                    if (useCounter)
                     {
-                        result = _lastSystemCpuLoad;
+                        result = _perfManager.GetCpuLoad();
+                        // 修正计数器可能出现的 >100% 溢出
+                        if (result.HasValue && result.Value > 100f) result = 100f;
                     }
-                    else
+
+                    // B. 熔断/回退逻辑 (LHM 手动聚合)
+                    if (result == null)
                     {
                         // 手动聚合
                         var cpu = _computer.Hardware.FirstOrDefault(h => h.HardwareType == HardwareType.Cpu);
@@ -195,22 +156,42 @@ namespace LiteMonitor.src.SystemServices
 
                 // 6. 内存
                 case "MEM.Load":
-                    // 检测总内存逻辑
-                    if (Settings.DetectedRamTotalGB <= 0)
+                    // A. 尝试走计数器 (极速)
+                    if (useCounter)
                     {
-                        lock (_lock)
+                        var memData = _perfManager.GetMemoryData();
+                        if (memData.Load.HasValue)
                         {
-                            if (_sensorMap.TryGetSensor("MEM.Used", out var u) && _sensorMap.TryGetSensor("MEM.Available", out var a))
+                            result = memData.Load.Value;
+                            // [可选] 顺便更新一下 TotalGB 用于 UI 显示 (如果 Settings 里还没检测到)
+                            // 这里假设 Settings.DetectedRamTotalGB 逻辑保持原样，或者你可以暴露 Manager 的 TotalMB
+                        }
+                    }
+
+                    // B. LHM 兜底逻辑
+                    if (result == null)
+                    {
+                        if (Settings.DetectedRamTotalGB <= 0)
+                        {
+                            lock (_lock)
                             {
-                                if (u.Value.HasValue && a.Value.HasValue)
+                                if (_sensorMap.TryGetSensor("MEM.Used", out var u) && _sensorMap.TryGetSensor("MEM.Available", out var a))
                                 {
-                                    float rawTotal = u.Value.Value + a.Value.Value;
-                                    Settings.DetectedRamTotalGB = rawTotal > 512.0f ? rawTotal / 1024.0f : rawTotal;
+                                    if (u.Value.HasValue && a.Value.HasValue)
+                                    {
+                                        float rawTotal = u.Value.Value + a.Value.Value;
+                                        Settings.DetectedRamTotalGB = rawTotal > 512.0f ? rawTotal / 1024.0f : rawTotal;
+                                    }
                                 }
                             }
                         }
+                        // Break 后走下方通用传感器取值
                     }
-                    // 下面 break 后会走到通用传感器逻辑去取值
+                    else
+                    {
+                        // 如果走了计数器，直接返回，不走下方 break
+                        break; 
+                    }
                     break;
 
                 // 7. 显存
@@ -311,12 +292,38 @@ namespace LiteMonitor.src.SystemServices
                     }
                     else if (key.StartsWith("DISK"))
                     {
-                        result = _diskManager.GetBestValue(key, _computer, _cfg, _lastValidMap, _lock);
+                        // ★★★ [修复冲突]：如果用户指定了首选磁盘，必须强制走 DiskManager (LHM) 
+                        // 因为计数器读取的是 _Total (全盘总和)，无法区分特定磁盘
+                        bool isSpecificDisk = !string.IsNullOrEmpty(_cfg.PreferredDisk);
+
+                        // A. 尝试走计数器 (仅在未指定特定磁盘时)
+                        if (useCounter && !isSpecificDisk) // <--- 修改了判断条件
+                        {
+                            if (key == "DISK.Read") result = _perfManager.GetDiskRead();
+                            else if (key == "DISK.Write") result = _perfManager.GetDiskWrite();
+                            else if (key == "DISK.Activity") result = _perfManager.GetDiskActive();
+                        }
+
+                        // B. 如果没开启计数器，或者指定了特定磁盘，走 LHM/DiskManager
+                        if (result == null)
+                        {
+                            result = _diskManager.GetBestValue(key, _computer, _cfg, _lastValidMap, _lock);
+                        }
                     }
                     // 5. 频率与功耗
                     else if (key.Contains("Clock") || key.Contains("Power"))
                     {
-                        result = GetCompositeValue(key);
+                         // A. CPU 频率尝试走计数器
+                         if (useCounter && key == "CPU.Clock")
+                         {
+                             result = _perfManager.GetCpuFreq();
+                         }
+                         
+                         // B. 回退
+                         if (result == null)
+                         {
+                             result = GetCompositeValue(key);
+                         }
                     }
                     break;
             }
@@ -454,7 +461,7 @@ namespace LiteMonitor.src.SystemServices
 
         public void Dispose()
         {
-            _cpuPerfCounter?.Dispose();
+            // _cpuPerfCounter?.Dispose(); // [删除] 移除了旧代码
         }
     }
 }

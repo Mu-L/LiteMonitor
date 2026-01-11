@@ -25,6 +25,9 @@ namespace LiteMonitor.src.SystemServices
         private readonly DriverInstaller _driverInstaller;
         private readonly HardwareValueProvider _valueProvider;
 
+        // ★★★ [新增] 性能计数器管理器 ★★★
+        private readonly PerformanceCounterManager _perfCounterManager;
+
         private readonly Dictionary<string, float> _lastValidMap = new();
         
         // ★★★ 优化：增加 UI 列表缓存，防止重复分配字符串 ★★★
@@ -51,7 +54,7 @@ namespace LiteMonitor.src.SystemServices
             // 1. 初始化 Computer
             _computer = new Computer()
             {
-                IsCpuEnabled = true,
+                IsCpuEnabled = cfg.IsAnyEnabled(""),
                 IsGpuEnabled = true,
                 IsMemoryEnabled = true,
                 IsNetworkEnabled = true,
@@ -65,18 +68,26 @@ namespace LiteMonitor.src.SystemServices
                 IsPsuEnabled = false
             };
 
+            // ★★★ [新增] 1. 初始化计数器管理器 (必须在 ValueProvider 之前) ★★★
+            _perfCounterManager = new PerformanceCounterManager();
+
             // 2. 初始化服务
             _sensorMap = new SensorMap();
             _networkManager = new NetworkManager();
             _diskManager = new DiskManager();
             _driverInstaller = new DriverInstaller(cfg, _computer, ReloadComputerSafe);
-            _valueProvider = new HardwareValueProvider(_computer, cfg, _sensorMap, _networkManager, _diskManager, _lock, _lastValidMap);
+
+            // ★★★ [修改] 2. 将 Manager 注入给 ValueProvider ★★★
+            _valueProvider = new HardwareValueProvider(_computer, cfg, _sensorMap, _networkManager, _diskManager, _perfCounterManager, _lock, _lastValidMap);
 
             // 3. 异步启动 (唯一优化：不卡UI)
             Task.Run(async () =>
             {
                 try
                 {
+                    // ★★★ [新增] 启动计数器预热 (不阻塞主 UI) ★★★
+                    _perfCounterManager.InitializeAsync();
+
                     // 这句耗时 4-5 秒，但在执行过程中，硬件会陆续添加到 _computer.Hardware
                     _computer.Open(); 
 
@@ -118,11 +129,31 @@ namespace LiteMonitor.src.SystemServices
                 _lastTrafficTime = now;
                 if (timeDelta > 5.0) timeDelta = 0;
 
+                // === [优化开始] 精细化判断更新需求 ===
+        
+                // 1. 获取计数器状态
+                bool useCounter = _cfg.UseWinPerCounters && _perfCounterManager.IsInitialized;
+                
+                // 2. CPU: 总是需要 (因为 LHM 要读温度)
                 bool needCpu = _cfg.IsAnyEnabled("CPU");
+
+                // 3. 显卡: 总是需要
                 bool needGpu = _cfg.IsAnyEnabled("GPU");
-                bool needMem = _cfg.IsAnyEnabled("MEM");
+
+                // 4. ★★★ [优化 1] 内存: 如果走了计数器，就不需要 LHM 轮询了 ★★★
+                bool needMem = _cfg.IsAnyEnabled("MEM") && !useCounter;
+
+                // 5. 网络: 保持不变
                 bool needNet = _cfg.IsAnyEnabled("NET") || _cfg.IsAnyEnabled("DATA");
-                bool needDisk = _cfg.IsAnyEnabled("DISK");
+
+                // 6. ★★★ [优化 2] 磁盘: 智能判断 ★★★
+                // 只有当 (没开计数器 OR 指定了特定盘 OR 需要看温度) 时，才需要 LHM 介入
+                // 如果用户只看总速且开了计数器，这里 needDisk 会变成 false -> 彻底省去 IO
+                bool needDiskTemp = _cfg.IsAnyEnabled("DISK.Temp");
+                bool hasSpecificDisk = !string.IsNullOrEmpty(_cfg.PreferredDisk);
+                bool needDiskSpeed = _cfg.IsAnyEnabled("DISK") && (!useCounter || hasSpecificDisk);
+                
+                bool needDisk = needDiskSpeed || needDiskTemp;
                 // 判断主板更新需求
                 bool needMobo = _cfg.IsAnyEnabled("MOBO") || 
                 _cfg.IsAnyEnabled("CPU.Fan") || 
@@ -283,6 +314,7 @@ namespace LiteMonitor.src.SystemServices
         {
             _computer.Close();
             _valueProvider.Dispose();
+            _perfCounterManager.Dispose(); // ★★★ [新增] 释放计数器资源 ★★★
             _networkManager.ClearCache();
             _diskManager.ClearCache(); // 漏掉的，补上
         }

@@ -81,7 +81,8 @@ namespace LiteMonitor
         [JsonIgnore] public static float DetectedRamTotalGB { get; set; } = 0;
         [JsonIgnore] public static float DetectedGpuVramTotalGB { get; set; } = 0;
 
-        public bool UseSystemCpuLoad { get; set; } = false; 
+        // 开启后：CPU使用率、CPU频率、内存占用、磁盘读写 将优先从 Windows 计数器读取
+        public bool UseWinPerCounters { get; set; } = true;
         
         // ====== 记录与报警 ======
         public float RecordedMaxCpuPower { get; set; } = 65.0f;
@@ -110,6 +111,8 @@ namespace LiteMonitor
         public Dictionary<string, string> GroupAliases { get; set; } = new Dictionary<string, string>();
         public List<MonitorItemConfig> MonitorItems { get; set; } = new List<MonitorItemConfig>();
 
+        /// <param name="keyPrefix">监控项类别前缀（如 "CPU", "GPU"）</param>
+        /// <returns>如果有任何匹配的启用项则返回true，否则返回false</returns>
         public bool IsAnyEnabled(string keyPrefix)
         {
             return MonitorItems.Any(x => x.Key.StartsWith(keyPrefix, StringComparison.OrdinalIgnoreCase) && (x.VisibleInPanel || x.VisibleInTaskbar));
