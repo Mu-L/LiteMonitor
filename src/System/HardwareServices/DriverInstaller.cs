@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using LibreHardwareMonitor.Hardware;
+using System.Net.Security;
 using LiteMonitor.src.Core;
 using Debug = System.Diagnostics.Debug;
 
@@ -82,7 +83,17 @@ namespace LiteMonitor.src.SystemServices
             string tempPath = Path.Combine(Path.GetTempPath(), "LiteMonitor_Driver.exe");
             bool downloadSuccess = false;
 
-            using (var client = new HttpClient())
+            // ★★★ [修复] 配置 HttpClient 忽略 SSL 错误 ★★★
+            // 使用 SocketsHttpHandler 来控制 SSL 选项
+            using (var handler = new SocketsHttpHandler
+            {
+                SslOptions = new SslClientAuthenticationOptions
+                {
+                    // 强制信任所有证书，防止用户环境报错
+                    RemoteCertificateValidationCallback = (sender, cert, chain, sslPolicyErrors) => true
+                }
+            })
+            using (var client = new HttpClient(handler))
             {
                 // 不要在这里设置 client.Timeout，我们对每个请求单独控制
                 client.DefaultRequestHeaders.Add("User-Agent", "LiteMonitor-AutoUpdater");

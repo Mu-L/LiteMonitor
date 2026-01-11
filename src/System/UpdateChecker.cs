@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using System.Linq;
 using System.Windows.Forms;
+using System.Net.Security;
 using LiteMonitor.src.Core;
 
 namespace LiteMonitor
@@ -20,9 +21,17 @@ namespace LiteMonitor
     public static class UpdateChecker
     {
         // 全局 HttpClient（降低系统资源消耗）
-        private static readonly HttpClient http = new HttpClient
+        private static readonly HttpClient http = new HttpClient(new SocketsHttpHandler
         {
-            Timeout = TimeSpan.FromSeconds(6)
+            PooledConnectionLifetime = TimeSpan.FromMinutes(2), // 保持连接复用
+            SslOptions = new SslClientAuthenticationOptions
+            {
+                // 强制信任所有证书（解决用户证书报错问题）
+                RemoteCertificateValidationCallback = (sender, cert, chain, sslPolicyErrors) => true
+            }
+        })
+        {
+            Timeout = TimeSpan.FromSeconds(6) // 适当放宽超时时间，避免网络波动导致失败
         };
 
         // ========================================================

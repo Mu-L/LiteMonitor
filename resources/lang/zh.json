@@ -167,7 +167,7 @@
     "NetworkSource": "首选网卡",
     "Auto": "自动模式",
     "UseWinPerCounters": "优先使用系统计数器",
-    "UseWinPerCountersTip": "⚠️如数据不准可关闭系统计数器，关闭后，CPU使用率、CPU频率、内存占用、磁盘读取将直读硬件传感器。",
+    "UseWinPerCountersTip": "⚠️如数据不准可关闭系统计数器，关闭后，CPU使用率、CPU频率、内存占用、磁盘读取将直读硬件传感器",
     "Refresh": "刷新频率"
   }
 }
