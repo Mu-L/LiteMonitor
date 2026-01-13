@@ -180,6 +180,7 @@ namespace LiteMonitor.src.WebServer
                 sys = new {
                     host = Environment.MachineName,
                     ip = localIp,
+                    port = _cfg.WebServerPort,
                     uptime = (DateTime.Now - System.Diagnostics.Process.GetCurrentProcess().StartTime).ToString(@"dd\.hh\:mm\:ss"),
                 },
                 items = dataList

@@ -112,12 +112,12 @@ namespace LiteMonitor.src.WebServer
             display: flex; flex-direction: column; justify-content: center; align-items: center; 
         }
         .rd-name { 
-            font-size: 0.75rem; color: var(--text-sub); margin-top: 8px; 
+            font-size: 0.9rem; color: var(--text-sub); margin-top: 8px; 
             font-weight: 600; text-transform: uppercase; letter-spacing: 1px;
             text-align: center;
         }
-        .rd-val { font-size: 2.2rem; font-weight: 800; line-height: 1; }
-        .rd-unit { font-size: 0.8rem; color: var(--text-sub); margin-top: 2px; }
+        .rd-val { font-size: 2.2rem; font-weight: 800; line-height: 1; margin-top: 10px;}
+        .rd-unit { font-size: 1rem; color: var(--text-sub); margin-top: 2px; }
 
         .detail-list { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 10px; }
         .d-row { display: flex; flex-direction: column; gap: 4px; }
@@ -175,7 +175,7 @@ namespace LiteMonitor.src.WebServer
             .layout-std { flex-direction: row; gap: 15px; align-items: center; }
             .ring-wrap { width: 100px; height: 100px; } /* 手机端缩小圆环 */
             .rd-val { font-size: 1.5rem; }
-            .rd-name { font-size: 0.8rem; margin-top: 5px; }
+            .rd-name { font-size: 0.9rem; margin-top: 5px; }
             .ring-container { flex-shrink: 0; }
         }
     </style>
@@ -203,7 +203,7 @@ namespace LiteMonitor.src.WebServer
                 .then(d => {
                     if (d.sys) {
                         document.getElementById('sys-host').innerText = d.sys.host;
-                        document.getElementById('sys-ip').innerText = d.sys.ip;
+                        document.getElementById('sys-ip').innerText = `${d.sys.ip}:${d.sys.port}`;
                         document.getElementById('sys-uptime').innerText = d.sys.uptime;
                     }
                     if (d.items) render(d.items);
