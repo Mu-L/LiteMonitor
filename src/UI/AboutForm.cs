@@ -13,8 +13,19 @@ namespace LiteMonitor
     {
         public AboutForm()
         {
+            // === 1. 语言判断与文案准备 ===
+            bool isZh = LanguageManager.CurrentLang == "zh";
+
+            string strTitle = isZh ? "关于 LiteMonitor" : "About LiteMonitor";
+            string strDesc = isZh ? "一款轻量级桌面硬件监控软件。\n© 2025 Diorser / LiteMonitor Project" 
+                                  : "A lightweight desktop hardware monitor.\n© 2025 Diorser / LiteMonitor Project";
+            string strWebPrefix = isZh ? "官网" : "Website";
+            string strUpdate = isZh ? "检查更新" : "Update?";
+            string strClose = isZh ? "确定" : "OK";
+            string strBug = isZh ? "反馈问题" : "Report Bug";
+
             // === 基础外观 ===
-            Text = "About LiteMonitor";
+            Text = strTitle;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             StartPosition = FormStartPosition.CenterScreen;   // ✅ 居中在屏幕（不会被主窗体挡住）
             MaximizeBox = false;
@@ -59,7 +70,7 @@ namespace LiteMonitor
             // === 简介 ===
             var lblDesc = new Label
             {
-                Text = "A lightweight desktop hardware monitor.\n© 2025 Diorser / LiteMonitor Project",
+                Text = strDesc,
                 ForeColor = ThemeManager.ParseColor(theme.Color.TextPrimary),
                 Location = new Point(UIUtils.S(32), UIUtils.S(98)),
                 AutoSize = true
@@ -68,7 +79,7 @@ namespace LiteMonitor
             // === 官网链接 ===
             var websiteLink = new LinkLabel
             {
-                Text = "Website: LiteMonitor.cn",
+                Text = $"{strWebPrefix}: LiteMonitor.cn",
                 LinkColor = Color.SkyBlue,
                 ActiveLinkColor = Color.LightSkyBlue,
                 VisitedLinkColor = Color.DeepSkyBlue,
@@ -105,12 +116,38 @@ namespace LiteMonitor
                 catch { }
             };
 
+            // === BUG 反馈按钮 (新增) ===
+            var btnBug = new Button
+            {
+                Text = strBug,
+                Size = UIUtils.S(new Size(100, 30)),
+                Anchor = AnchorStyles.Bottom | AnchorStyles.Left,
+                // ✅ 与左侧文字(x=32)对齐
+                Location = new Point(UIUtils.S(32), UIUtils.S(235)),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = ThemeManager.ParseColor(theme.Color.BarBackground),
+                ForeColor = ThemeManager.ParseColor(theme.Color.TextPrimary),
+                Font = new Font(theme.Font.Family, 9.5f, FontStyle.Regular)
+            };
+            btnBug.FlatAppearance.BorderSize = 0;
+            btnBug.FlatAppearance.MouseOverBackColor = ThemeManager.ParseColor(theme.Color.Background);
+            btnBug.Click += (_, __) => 
+            {
+                try
+                {
+                    Process.Start(new ProcessStartInfo("https://github.com/Diorser/LiteMonitor/issues")
+                    { UseShellExecute = true });
+                }
+                catch { }
+            };
+
             // === 检查更新按钮 ===
             var btnCheckUpdate = new Button
             {
-                Text = "Update?",
+                Text = strUpdate,
                 Size = UIUtils.S(new Size(100, 30)),
                 Anchor = AnchorStyles.Bottom | AnchorStyles.Left,
+                // 稍微往右移一点，给 Bug 按钮腾出空间 (原 150 保持不变，刚好合适)
                 Location = new Point(UIUtils.S(150), UIUtils.S(235)),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = ThemeManager.ParseColor(theme.Color.BarBackground),
@@ -124,7 +161,7 @@ namespace LiteMonitor
             // === 关闭按钮（扁平风格） ===
             var btnClose = new Button
             {
-                Text = "OK",
+                Text = strClose,
                 DialogResult = DialogResult.OK,
                 Anchor = AnchorStyles.Bottom | AnchorStyles.Right,
                 Size = UIUtils.S(new Size(70, 30)),
@@ -137,7 +174,8 @@ namespace LiteMonitor
             btnClose.FlatAppearance.BorderSize = 0;           // ✅ 移除白边框
             btnClose.FlatAppearance.MouseOverBackColor = ThemeManager.ParseColor(theme.Color.Background);
 
-            Controls.AddRange([lblTitle, lblVer, lblDesc, websiteLink, githubLink, btnCheckUpdate, btnClose]);
+            // 别忘了把新按钮 btnBug 加入集合
+            Controls.AddRange([lblTitle, lblVer, lblDesc, websiteLink, githubLink, btnBug, btnCheckUpdate, btnClose]);
         }
     }
 }
