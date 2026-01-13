@@ -50,9 +50,19 @@ namespace LiteMonitor
         public bool HideMainForm { get; set; } = false;
         public bool HideTrayIcon { get; set; } = false;
         public bool TaskbarAlignLeft { get; set; } = true;
+        
+        // ★★★ 任务栏：自定义布局参数 ★★★
+        // 开启后，将忽略预设的"粗体/细体"逻辑，强制使用以下参数
+        public bool TaskbarCustomLayout { get; set; } = false; 
+
         public string TaskbarFontFamily { get; set; } = "Microsoft YaHei UI";
         public float TaskbarFontSize { get; set; } = 10f;
         public bool TaskbarFontBold { get; set; } = true;
+        
+        // 间距配置 (单位: px, 会自动随 DPI 缩放)
+        public int TaskbarItemSpacing { get; set; } = 6;      // 组与组之间的间距
+        public int TaskbarInnerSpacing { get; set; } = 8;     // 标签与数值之间的间距
+        public int TaskbarVerticalPadding { get; set; } = 2;  // 垂直方向的微调/行间距
         
         // ★★★ 新增：指定任务栏显示的屏幕设备名 ("" = 自动/主屏) ★★★
         public string TaskbarMonitorDevice { get; set; } = "";
@@ -140,6 +150,25 @@ namespace LiteMonitor
                         LanguageManager.SetOverride(UIUtils.Intern("Short." + item.Key), item.TaskbarLabel);
                 }
             }
+        }
+
+        // ★★★ [新增] 极简样式封装（复制到 Settings 类里） ★★★
+        public struct TBStyle { 
+            public string Font; public float Size; public bool Bold; 
+            public int Gap; public int Inner; public int VOff; 
+        }
+
+        public TBStyle GetStyle() {
+            // 1. 如果开启自定义，返回配置值
+            if (TaskbarCustomLayout) return new TBStyle {
+                Font = TaskbarFontFamily, Size = TaskbarFontSize, Bold = TaskbarFontBold,
+                Gap = TaskbarItemSpacing, Inner = TaskbarInnerSpacing, VOff = TaskbarVerticalPadding
+            };
+            // 2. 否则强制返回【标准默认值】（彻底解决样式残留问题）
+            return new TBStyle {
+                Font = "Microsoft YaHei UI", Size = TaskbarFontBold ? 10f : 9f, Bold = TaskbarFontBold,
+                Gap = 6, Inner = TaskbarFontBold ? 10 : 8, VOff = 2 // 这里的 2 就是默认的垂直微调
+            };
         }
 
         public void UpdateMaxRecord(string key, float val)

@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.Linq; // ★ 需要引用 Linq
+using System.Linq; 
 using System.Windows.Forms;
 using LiteMonitor.src.Core;
 using LiteMonitor.src.UI.Controls;
@@ -13,6 +13,13 @@ namespace LiteMonitor.src.UI.SettingsPage
         private Panel _container;
         private bool _isLoaded = false;
         private List<Control> _customColorInputs = new List<Control>();
+        
+        // 缓存自定义布局控件，便于联动启用/禁用
+        private List<Control> _customLayoutInputs = new List<Control>();
+        // 缓存样式下拉框，用于互斥控制
+        private Control _styleCombo;
+        // ★★★ [新增] 缓存总开关控件，用于在Save时优先读取 ★★★
+        private CheckBox _chkCustomLayout;
 
         public TaskbarPage()
         {
@@ -32,10 +39,33 @@ namespace LiteMonitor.src.UI.SettingsPage
             _container.Controls.Clear();
 
             CreateGeneralGroup(); 
+            CreateLayoutGroup();
             CreateColorGroup();   
 
             _container.ResumeLayout();
             _isLoaded = true;
+        }
+
+        // ★★★ 核心修复：重写保存逻辑 ★★★
+        public override void Save()
+        {
+            // 1. 【关键步骤】保存前，强制先更新“是否开启自定义”的状态
+            // 否则后续保存 CheckBox(粗体) 时，Config.TaskbarCustomLayout 还是旧值，会导致逻辑判断失效
+            if (_chkCustomLayout != null)
+            {
+                Config.TaskbarCustomLayout = _chkCustomLayout.Checked;
+            }
+
+            // 2. 执行基类保存（这会触发所有控件的 Setter）
+            // 因为第1步已经更新了开关，所以 chkBold 的 Setter 里的 if 判断就能正确工作了
+            base.Save();
+
+            // 3. 持久化到磁盘
+            Config.Save();
+
+            // 4. 强制刷新渲染器缓存
+            // 此时 Config 里的 FontBold 和 CustomLayout 都是完全正确的组合
+            TaskbarRenderer.ReloadStyle(Config);
         }
 
         private void CreateGeneralGroup()
@@ -50,16 +80,20 @@ namespace LiteMonitor.src.UI.SettingsPage
             );
 
             // 3. 样式 (Bold/Regular)
-            AddComboIndex(group, "Menu.TaskbarStyle",
+            var combo = AddComboIndex(group, "Menu.TaskbarStyle",
                 new[] { LanguageManager.T("Menu.TaskbarStyleBold"), LanguageManager.T("Menu.TaskbarStyleRegular") },
-                () => (Math.Abs(Config.TaskbarFontSize - 9f) < 0.1f && !Config.TaskbarFontBold) ? 1 : 0,
+                // 只有在【标准模式 + 9pt】时才显示为"小字"，否则默认"大字"
+                () => (!Config.TaskbarFontBold && Math.Abs(Config.TaskbarFontSize - 9f) < 0.1f) ? 1 : 0,
                 idx => {
-                    if (idx == 1) { Config.TaskbarFontSize = 9f; Config.TaskbarFontBold = false; }
-                    else { Config.TaskbarFontSize = 10f; Config.TaskbarFontBold = true; }
+                    // 只有在【未开启自定义】时，才允许修改标准配置
+                    if (!Config.TaskbarCustomLayout) {
+                        if (idx == 1) { Config.TaskbarFontSize = 9f; Config.TaskbarFontBold = false; } // 小字
+                        else { Config.TaskbarFontSize = 10f; Config.TaskbarFontBold = true; } // 大字
+                    }
                 }
             );
-
-            
+            _styleCombo = combo; 
+            _styleCombo.Enabled = !Config.TaskbarCustomLayout; // 初始状态
 
              // 4. 单行显示
             AddBool(group, "Menu.TaskbarSingleLine", 
@@ -70,27 +104,21 @@ namespace LiteMonitor.src.UI.SettingsPage
             // 2. 鼠标穿透
             AddBool(group, "Menu.ClickThrough", () => Config.TaskbarClickThrough, v => Config.TaskbarClickThrough = v);
            
-
-            // ★★★ 新增：选择显示器 ★★★
-            // 获取所有屏幕列表
+            // 选择显示器
             var screens = Screen.AllScreens;
-            // 构造显示名称： "1: \\.\DISPLAY1 [Main]"
             var screenNames = screens.Select((s, i) => 
                 $"{i + 1}: {s.DeviceName.Replace(@"\\.\DISPLAY", "Display ")}{(s.Primary ? " [Main]" : "")}"
             ).ToList();
             
-            // 插入 "自动 (主屏)" 选项
             screenNames.Insert(0, LanguageManager.T("Menu.Auto"));
             AddComboIndex(group, "Menu.TaskbarMonitor", screenNames.ToArray(), 
                 () => {
-                    // Getter: 根据保存的 DeviceName 找到对应 Index
                     if (string.IsNullOrEmpty(Config.TaskbarMonitorDevice)) return 0;
                     var idx = Array.FindIndex(screens, s => s.DeviceName == Config.TaskbarMonitorDevice);
                     return idx >= 0 ? idx + 1 : 0;
                 },
                 idx => {
-                    // Setter: 保存选中的 DeviceName
-                    if (idx == 0) Config.TaskbarMonitorDevice = ""; // 自动
+                    if (idx == 0) Config.TaskbarMonitorDevice = ""; 
                     else Config.TaskbarMonitorDevice = screens[idx - 1].DeviceName;
                 }
             );
@@ -107,7 +135,6 @@ namespace LiteMonitor.src.UI.SettingsPage
                 idx => Config.TaskbarDoubleClickAction = idx
             );
 
-
             // 4. 对齐
             AddComboIndex(group, "Menu.TaskbarAlign",
                 new[] { LanguageManager.T("Menu.TaskbarAlignRight"), LanguageManager.T("Menu.TaskbarAlignLeft") },
@@ -115,14 +142,92 @@ namespace LiteMonitor.src.UI.SettingsPage
                 idx => Config.TaskbarAlignLeft = (idx == 1)
             );
 
-            // ★★★ 新增：手动偏移量修正 (支持负数) ★★★
-            // 提示：你可以在 zh.json 中添加 "Menu.TaskbarOffsetAdjust": "偏移量修正 (px)"
+            // 手动偏移量修正
             AddNumberInt(group, "Menu.TaskbarOffset", "px", 
                 () => Config.TaskbarManualOffset, 
                 v => Config.TaskbarManualOffset = v
             );
 
             group.AddFullItem(new LiteNote(LanguageManager.T("Menu.TaskbarAlignTip"), 0));
+            AddGroupToPage(group);
+        }
+
+        private void CreateLayoutGroup()
+        {
+            var group = new LiteSettingsGroup(LanguageManager.T("Menu.TaskbarCustomLayout")); 
+            _customLayoutInputs.Clear();
+
+            // 1. 自定义总开关
+            AddBool(group, "Menu.TaskbarCustomLayout", 
+                () => Config.TaskbarCustomLayout, 
+                v => Config.TaskbarCustomLayout = v,
+                chk => {
+                    // ★ 捕获控件引用
+                    _chkCustomLayout = chk as CheckBox; 
+                    chk.CheckedChanged += (s, e) => {
+                        // 界面联动
+                        foreach(var c in _customLayoutInputs) c.Enabled = chk.Checked;
+                        if (_styleCombo != null) _styleCombo.Enabled = !chk.Checked;
+                    };
+                }
+            );
+
+            void AddL(string key, Control ctrl) {
+                _customLayoutInputs.Add(ctrl);
+                ctrl.Enabled = Config.TaskbarCustomLayout;
+            }
+
+            // 2. 字体选择
+            var installedFonts = System.Drawing.FontFamily.Families.Select(f => f.Name).ToList();
+            if (!installedFonts.Contains(Config.TaskbarFontFamily)) 
+                installedFonts.Insert(0, Config.TaskbarFontFamily);
+
+            var cbFont = AddCombo(group, "Menu.TaskbarFont", installedFonts, 
+                () => Config.TaskbarFontFamily, 
+                v => Config.TaskbarFontFamily = v
+            );
+            AddL("", cbFont);
+
+            group.AddFullItem(new LiteNote(LanguageManager.T("Menu.TaskbarCustomLayoutTip"), 0));
+
+            // 3. 字号
+            var nbSize = AddNumberDouble(group, "Menu.TaskbarFontSize", "pt", 
+                () => Config.TaskbarFontSize, 
+                v => Config.TaskbarFontSize = (float)v
+            );
+            AddL("", nbSize);
+
+            // 4. 粗体
+            // ★★★ 修复：增加条件锁，只有开启自定义时才允许写入配置 ★★★
+            var chkBold = AddBool(group, "Menu.TaskbarFontBold", 
+                () => Config.TaskbarFontBold, 
+                v => { 
+                    // 如果当前是标准模式，禁止这个控件修改 Config
+                    // 这样就不会把标准模式的"不加粗"覆盖成"加粗"了
+                    if (Config.TaskbarCustomLayout) Config.TaskbarFontBold = v; 
+                }
+            );
+            AddL("", chkBold);
+
+            // 5. 间距配置
+            var nbItemSp = AddNumberInt(group, "Menu.TaskbarItemSpacing", "px", 
+                () => Config.TaskbarItemSpacing, 
+                v => Config.TaskbarItemSpacing = v
+            );
+            AddL("", nbItemSp);
+
+            var nbInnerSp = AddNumberInt(group, "Menu.TaskbarInnerSpacing", "px", 
+                () => Config.TaskbarInnerSpacing, 
+                v => Config.TaskbarInnerSpacing = v
+            );
+            AddL("", nbInnerSp);
+
+            var nbVertPad = AddNumberInt(group, "Menu.TaskbarVerticalPadding", "px", 
+                () => Config.TaskbarVerticalPadding, 
+                v => Config.TaskbarVerticalPadding = v
+            );
+            AddL("", nbVertPad);
+
             AddGroupToPage(group);
         }
 
@@ -139,14 +244,12 @@ namespace LiteMonitor.src.UI.SettingsPage
                 }
             );
 
-            // === 修复开始：屏幕取色器 ===
+            // 屏幕取色器
             var tbResult = new LiteUnderlineInput("#000000", "", "", 65, null, HorizontalAlignment.Center);
-            // 手动调整 Padding (之前提到的通用修复)
             tbResult.Padding = UIUtils.S(new Padding(0, 5, 0, 1)); 
             tbResult.Inner.ReadOnly = true; 
 
             var btnPick = new LiteSortBtn("🖌"); 
-            // ★★★ 关键修复 1：坐标缩放 (70 -> S(70))
             btnPick.Location = new Point(UIUtils.S(70), UIUtils.S(1));
 
             btnPick.Click += (s, e) => {
@@ -161,7 +264,6 @@ namespace LiteMonitor.src.UI.SettingsPage
                         tbResult.Inner.Text = hex;
                         f.Close();
                         
-                        // 提示用户
                         string confirmMsg = string.Format("{0} {1}?", LanguageManager.T("Menu.ScreenColorPickerTip"), hex);
                         if (MessageBox.Show(confirmMsg, "LiteMonitor", MessageBoxButtons.YesNo) == DialogResult.Yes)
                         {
@@ -180,18 +282,14 @@ namespace LiteMonitor.src.UI.SettingsPage
                 }
             };
 
-            // ★★★ 关键修复 2：容器尺寸缩放 (96 -> S(96))
-            // 如果不缩放，容器太窄，会被父级 Layout 挤到最右边，且无法容纳变大的输入框
             Panel toolCtrl = new Panel { Size = new Size(UIUtils.S(96), UIUtils.S(26)) };
             toolCtrl.Controls.Add(tbResult);
             toolCtrl.Controls.Add(btnPick);
             
             group.AddItem(new LiteSettingsItem(LanguageManager.T("Menu.ScreenColorPicker"), toolCtrl));
-            // === 修复结束 ===
 
             group.AddFullItem(new LiteNote(LanguageManager.T("Menu.TaskbarCustomTip"), 0));
 
-            // ... 后续代码保持不变 ...
             void AddC(string key, Func<string> get, Action<string> set)
             {
                 var input = AddColor(group, key, get, set, Config.TaskbarCustomStyle);

@@ -363,40 +363,27 @@ namespace LiteMonitor
         // ★★★ 新增：构建垂直列表布局 ★★★
         private void BuildVerticalLayout()
         {
+            var s = _cfg.GetStyle(); // ★ 1. 获取样式
+            
             int w = _taskbarRect.Width;
-            // 确保宽度有效
             if (w < 20) w = 60; 
 
-            // 根据字体计算行高，留一点边距
-            int itemHeight = (int)(_cfg.TaskbarFontSize * 1.5f + 6);
+            // 字体高度估算
+            int itemHeight = (int)(s.Size * 1.5f + 6); 
             if (itemHeight < 20) itemHeight = 20;
 
-            // ★★★ 新增：定义左右边距 ★★★
-            int margin = 4; // 这里设置 4 像素边距，你可以根据喜好调整（如 2~6）
+            int margin = Math.Max(0, s.Inner / 2); // ★ 2. 使用 s.Inner
             int contentWidth = w - (margin * 2);
 
             int y = 0;
             foreach (var col in _cols)
             {
-                // 垂直堆叠：先 Top 项，后 Bottom 项
-                if (col.Top != null)
-                {
-                    col.BoundsTop = new Rectangle(margin, y, contentWidth, itemHeight);
-                    y += itemHeight;
-                }
-                else col.BoundsTop = Rectangle.Empty;
+                // ... (Top/Bottom 计算) ...
+                if (col.Top != null) { /*...*/ y += itemHeight; }
+                if (col.Bottom != null) { /*...*/ y += itemHeight; }
 
-                if (col.Bottom != null)
-                {
-                    col.BoundsBottom = new Rectangle(margin, y, contentWidth, itemHeight);
-                    y += itemHeight;
-                }
-                else col.BoundsBottom = Rectangle.Empty;
-                
-                // 项之间微小间距
-                // y += 2; 
+                y += s.VOff; // ★ 3. 使用 s.VOff 控制行间距
             }
-
             this.Width = w;
             this.Height = y;
         }

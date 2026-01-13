@@ -33,8 +33,12 @@ namespace LiteMonitor
         // 在 UIController 初始化或配置变更时调用它
         public static void ReloadStyle(Settings cfg)
         {     
-            _cachedFont = UIUtils.GetFont(cfg.TaskbarFontFamily, cfg.TaskbarFontSize, cfg.TaskbarFontBold);
-            // ★★★ [新增] 读取自定义颜色配置 ★★★
+            var s = cfg.GetStyle();
+
+            // 无论开关怎么变，这里拿到的永远是正确参数
+            _cachedFont = UIUtils.GetFont(s.Font, s.Size, s.Bold);
+
+            // 颜色依然允许自定义
             _useCustom = cfg.TaskbarCustomStyle;
             if (_useCustom)
             {

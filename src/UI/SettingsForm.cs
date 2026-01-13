@@ -86,7 +86,7 @@ namespace LiteMonitor.src.UI
             // [需求1] 恢复默认逻辑 - 修复版
             btnReset.Click += (s, e) => 
             {
-                if (MessageBox.Show(LanguageManager.T("Menu.ResetConfirm"), "Warning", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
+                if (MessageBox.Show(LanguageManager.T("Menu.ResetConfirm"), LanguageManager.T("Menu.Reset"), MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
                 {
                     try 
                     {

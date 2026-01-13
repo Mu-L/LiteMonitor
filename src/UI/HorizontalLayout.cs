@@ -58,8 +58,9 @@ namespace LiteMonitor
         /// </summary>
         public int Build(List<Column> cols, int taskbarHeight = 32)
         {
-            if (cols == null || cols.Count == 0)
-                return 0;
+            if (cols == null || cols.Count == 0) return 0;
+            // ★ 1. 获取统一样式（不管是自定义还是默认，都由它决定）
+            var s = _settings.GetStyle();
 
             int pad = _padding;
             int padV = _padding / 2;
@@ -94,10 +95,9 @@ namespace LiteMonitor
 
                     if (_mode == LayoutMode.Taskbar)
                     {
-                        var fontStyle = _settings.TaskbarFontBold ? FontStyle.Bold : FontStyle.Regular;
-                        var f = new Font(_settings.TaskbarFontFamily, _settings.TaskbarFontSize, fontStyle);
-                        labelFont = f;
-                        valueFont = f;
+                        var fs = s.Bold ? FontStyle.Bold : FontStyle.Regular;
+                        var f = new Font(s.Font, s.Size, fs); // 直接用 s.Font, s.Size
+                        labelFont = f; valueFont = f;
                     }
                     else
                     {
@@ -136,15 +136,10 @@ namespace LiteMonitor
                     ).Width;
 
                     int wValue = Math.Max(wValueTop, wValueBottom);
+                    // ★ 3. 替换内间距逻辑
                     int paddingX = _rowH;
-                    if (_mode == LayoutMode.Taskbar)
-                    {
-                        // 任务栏模式：紧凑固定左/右内间距
-                        paddingX = (int)Math.Round(10 * dpi);
-                        if (!_settings.TaskbarFontBold){
-                            paddingX = (int)Math.Round(8 * dpi);
-                        }                            
-                    }
+                    if (_mode == LayoutMode.Taskbar) paddingX = (int)Math.Round(s.Inner * dpi); // 直接用 s.Inner
+
                     // ====== 列宽（不再限制最大/最小宽度）======
                     col.ColumnWidth = wLabel + wValue + paddingX;
                     totalWidth += col.ColumnWidth;
@@ -157,15 +152,14 @@ namespace LiteMonitor
                 }
             }
 
-            // ===== gap 随 DPI =====
-            int gapBase = (_mode == LayoutMode.Taskbar) ? 6 : 12;
-            int gap = (int)Math.Round(gapBase * dpi);
+           
+           // ★ 4. 替换组间距逻辑
+            int gapBase = (_mode == LayoutMode.Taskbar) ? s.Gap : 12; // 直接用 s.Gap
+            int gap = (int)Math.Round(gapBase * dpi); // ===== gap 随 DPI =====
 
-            if (cols.Count > 1)
-                totalWidth += (cols.Count - 1) * gap;
-
+            if (cols.Count > 1) totalWidth += (cols.Count - 1) * gap;
             PanelWidth = totalWidth;
-
+            
             // ===== 设置列 Bounds =====
             int x = pad;
 
@@ -177,28 +171,16 @@ namespace LiteMonitor
 
                 if (_mode == LayoutMode.Taskbar)
                 {
-                    if (isTaskbarSingle)
-                    {
-                        // ★★★ 单行模式：Top 占满全高，Bottom 为空 ★★★
-                        col.BoundsTop = col.Bounds; 
+                   // ★ 5. 垂直定位逻辑（包含 offset 修正）
+                    int fixOffset = 1; // 全局向下微调 1px 防止偏上
+                    
+                    if (isTaskbarSingle) {
+                        col.BoundsTop = new Rectangle(x, col.Bounds.Y + fixOffset, col.ColumnWidth, colHeight);
                         col.BoundsBottom = Rectangle.Empty;
-                    }
-                    else
-                    {
-                        // ★★★ 原有双行模式：上下各一半 ★★★
-                        col.BoundsTop = new Rectangle(
-                            col.Bounds.X,
-                            col.Bounds.Y + 2,
-                            col.Bounds.Width,
-                            _rowH - 2
-                        );
-
-                        col.BoundsBottom = new Rectangle(
-                            col.Bounds.X,
-                            col.Bounds.Y + _rowH - 2,
-                            col.Bounds.Width,
-                            _rowH
-                        );
+                    } else {
+                        // 双行模式：直接用 s.VOff
+                        col.BoundsTop = new Rectangle(x, col.Bounds.Y + s.VOff + fixOffset, col.ColumnWidth, _rowH - s.VOff);
+                        col.BoundsBottom = new Rectangle(x, col.Bounds.Y + _rowH - s.VOff + fixOffset, col.ColumnWidth, _rowH);
                     }
                 }
                 else
