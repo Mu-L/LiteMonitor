@@ -48,14 +48,20 @@ namespace LiteMonitor.src.SystemServices
         // ★★★ [新增] 清空缓存（当硬件重启时必须调用） ★★★
         public void ClearCache()
         {
-            _manualSensorCache.Clear();
-            _tickCache.Clear();
+            lock (_lock)
+            {
+                _manualSensorCache.Clear();
+                _tickCache.Clear();
+            }
         }
 
         public void UpdateSystemCpuCounter()
         {
             // ★★★ [新增] 每一轮更新开始时，清空本轮缓存 ★★★
-            _tickCache.Clear();
+            lock (_lock)
+            {
+                _tickCache.Clear();
+            }
 
             // [删除] 旧的 UpdateSystemCpuCounter 逻辑全部移除
             // Manager 现在会自动处理 NextValue
@@ -67,303 +73,306 @@ namespace LiteMonitor.src.SystemServices
         // ===========================================================
         public float? GetValue(string key)
         {
-            // ★★★ [新增 3] 优先查缓存，如果本帧算过，直接返回 ★★★
-            if (_tickCache.TryGetValue(key, out float cachedVal)) return cachedVal;
-
-            _sensorMap.EnsureFresh(_computer, _cfg);
-
-            // 定义临时结果变量
-            float? result = null;
-            
-            // ★★★ [核心逻辑] 全局开关判断：只有当开关开启，且管理器已初始化成功时，才尝试走计数器 ★★★
-            // 这里的 UseWindowsPerformanceCounters 对应 Step 1 中 Settings 新增的属性
-            bool useCounter = _cfg.UseWinPerCounters && _perfManager.IsInitialized;
-
-            // ★★★ [终极优化] 使用 switch 替代 if-else 链，实现 O(1) 哈希跳转 ★★★
-            switch (key)
+            lock (_lock)
             {
-                // 1. CPU.Load
-                case "CPU.Load":
-                    // A. 尝试走计数器
-                    if (useCounter)
-                    {
-                        result = _perfManager.GetCpuLoad();
-                        // 修正计数器可能出现的 >100% 溢出
-                        if (result.HasValue && result.Value > 100f) result = 100f;
-                    }
+                // ★★★ [新增 3] 优先查缓存，如果本帧算过，直接返回 ★★★
+                if (_tickCache.TryGetValue(key, out float cachedVal)) return cachedVal;
 
-                    // B. 熔断/回退逻辑 (LHM 手动聚合)
-                    if (result == null)
-                    {
-                        // 手动聚合
-                        var cpu = _computer.Hardware.FirstOrDefault(h => h.HardwareType == HardwareType.Cpu);
-                        if (cpu != null)
+                _sensorMap.EnsureFresh(_computer, _cfg);
+
+                // 定义临时结果变量
+                float? result = null;
+                
+                // ★★★ [核心逻辑] 全局开关判断：只有当开关开启，且管理器已初始化成功时，才尝试走计数器 ★★★
+                // 这里的 UseWindowsPerformanceCounters 对应 Step 1 中 Settings 新增的属性
+                bool useCounter = _cfg.UseWinPerCounters && _perfManager.IsInitialized;
+
+                // ★★★ [终极优化] 使用 switch 替代 if-else 链，实现 O(1) 哈希跳转 ★★★
+                switch (key)
+                {
+                    // 1. CPU.Load
+                    case "CPU.Load":
+                        // A. 尝试走计数器
+                        if (useCounter)
                         {
-                            double totalLoad = 0;
-                            int coreCount = 0;
-                            foreach (var s in cpu.Sensors)
-                            {
-                                if (s.SensorType != SensorType.Load) continue;
-                                if (SensorMap.Has(s.Name, "Core") && SensorMap.Has(s.Name, "#") && 
-                                    !SensorMap.Has(s.Name, "Total") && !SensorMap.Has(s.Name, "SOC") && 
-                                    !SensorMap.Has(s.Name, "Max") && !SensorMap.Has(s.Name, "Average"))
-                                {
-                                    if (s.Value.HasValue) { totalLoad += s.Value.Value; coreCount++; }
-                                }
-                            }
-                            if (coreCount > 0) result = (float)(totalLoad / coreCount);
+                            result = _perfManager.GetCpuLoad();
+                            // 修正计数器可能出现的 >100% 溢出
+                            if (result.HasValue && result.Value > 100f) result = 100f;
                         }
-                        
-                        // 兜底
+
+                        // B. 熔断/回退逻辑 (LHM 手动聚合)
                         if (result == null)
                         {
-                            lock (_lock) { if (_sensorMap.TryGetSensor("CPU.Load", out var s) && s.Value.HasValue) result = s.Value.Value; }
-                        }
-                        // 如果还是没值，默认为 0
-                        if (result == null) result = 0f;
-                    }
-                    break;
-
-                // 2. CPU.Temp
-                case "CPU.Temp":
-                    float maxTemp = -1000f;
-                    bool found = false;
-                    var cpuT = _computer.Hardware.FirstOrDefault(h => h.HardwareType == HardwareType.Cpu);
-                    if (cpuT != null)
-                    {
-                        foreach (var s in cpuT.Sensors)
-                        {
-                            if (s.SensorType != SensorType.Temperature) continue;
-                            if (!s.Value.HasValue || s.Value.Value <= 0) continue;
-                            if (SensorMap.Has(s.Name, "Distance") || SensorMap.Has(s.Name, "Average") || SensorMap.Has(s.Name, "Max")) continue;
-                            if (s.Value.Value > maxTemp) { maxTemp = s.Value.Value; found = true; }
-                        }
-                    }
-                    if (found) result = maxTemp;
-                    
-                    if (result == null)
-                    {
-                        lock (_lock) { if (_sensorMap.TryGetSensor("CPU.Temp", out var s) && s.Value.HasValue) result = s.Value.Value; }
-                    }
-                    if (result == null) result = 0f;
-                    break;
-
-                // 4. 每日流量
-                case "DATA.DayUp":
-                    result = TrafficLogger.GetTodayStats().up;
-                    break;
-                case "DATA.DayDown":
-                    result = TrafficLogger.GetTodayStats().down;
-                    break;
-
-                // 6. 内存
-                case "MEM.Load":
-                    // A. 尝试走计数器 (极速)
-                    if (useCounter)
-                    {
-                        var memData = _perfManager.GetMemoryData();
-                        if (memData.Load.HasValue)
-                        {
-                            result = memData.Load.Value;
-                            // [可选] 顺便更新一下 TotalGB 用于 UI 显示 (如果 Settings 里还没检测到)
-                            // 这里假设 Settings.DetectedRamTotalGB 逻辑保持原样，或者你可以暴露 Manager 的 TotalMB
-                        }
-                    }
-
-                    // B. LHM 兜底逻辑
-                    if (result == null)
-                    {
-                        if (Settings.DetectedRamTotalGB <= 0)
-                        {
-                            lock (_lock)
+                            // 手动聚合
+                            var cpu = _computer.Hardware.FirstOrDefault(h => h.HardwareType == HardwareType.Cpu);
+                            if (cpu != null)
                             {
-                                if (_sensorMap.TryGetSensor("MEM.Used", out var u) && _sensorMap.TryGetSensor("MEM.Available", out var a))
+                                double totalLoad = 0;
+                                int coreCount = 0;
+                                foreach (var s in cpu.Sensors)
                                 {
-                                    if (u.Value.HasValue && a.Value.HasValue)
+                                    if (s.SensorType != SensorType.Load) continue;
+                                    if (SensorMap.Has(s.Name, "Core") && SensorMap.Has(s.Name, "#") && 
+                                        !SensorMap.Has(s.Name, "Total") && !SensorMap.Has(s.Name, "SOC") && 
+                                        !SensorMap.Has(s.Name, "Max") && !SensorMap.Has(s.Name, "Average"))
                                     {
-                                        float rawTotal = u.Value.Value + a.Value.Value;
-                                        Settings.DetectedRamTotalGB = rawTotal > 512.0f ? rawTotal / 1024.0f : rawTotal;
+                                        if (s.Value.HasValue) { totalLoad += s.Value.Value; coreCount++; }
+                                    }
+                                }
+                                if (coreCount > 0) result = (float)(totalLoad / coreCount);
+                            }
+                            
+                            // 兜底
+                            if (result == null)
+                            {
+                                lock (_lock) { if (_sensorMap.TryGetSensor("CPU.Load", out var s) && s.Value.HasValue) result = s.Value.Value; }
+                            }
+                            // 如果还是没值，默认为 0
+                            if (result == null) result = 0f;
+                        }
+                        break;
+
+                    // 2. CPU.Temp
+                    case "CPU.Temp":
+                        float maxTemp = -1000f;
+                        bool found = false;
+                        var cpuT = _computer.Hardware.FirstOrDefault(h => h.HardwareType == HardwareType.Cpu);
+                        if (cpuT != null)
+                        {
+                            foreach (var s in cpuT.Sensors)
+                            {
+                                if (s.SensorType != SensorType.Temperature) continue;
+                                if (!s.Value.HasValue || s.Value.Value <= 0) continue;
+                                if (SensorMap.Has(s.Name, "Distance") || SensorMap.Has(s.Name, "Average") || SensorMap.Has(s.Name, "Max")) continue;
+                                if (s.Value.Value > maxTemp) { maxTemp = s.Value.Value; found = true; }
+                            }
+                        }
+                        if (found) result = maxTemp;
+                        
+                        if (result == null)
+                        {
+                            lock (_lock) { if (_sensorMap.TryGetSensor("CPU.Temp", out var s) && s.Value.HasValue) result = s.Value.Value; }
+                        }
+                        if (result == null) result = 0f;
+                        break;
+
+                    // 4. 每日流量
+                    case "DATA.DayUp":
+                        result = TrafficLogger.GetTodayStats().up;
+                        break;
+                    case "DATA.DayDown":
+                        result = TrafficLogger.GetTodayStats().down;
+                        break;
+
+                    // 6. 内存
+                    case "MEM.Load":
+                        // A. 尝试走计数器 (极速)
+                        if (useCounter)
+                        {
+                            var memData = _perfManager.GetMemoryData();
+                            if (memData.Load.HasValue)
+                            {
+                                result = memData.Load.Value;
+                                // [可选] 顺便更新一下 TotalGB 用于 UI 显示 (如果 Settings 里还没检测到)
+                                // 这里假设 Settings.DetectedRamTotalGB 逻辑保持原样，或者你可以暴露 Manager 的 TotalMB
+                            }
+                        }
+
+                        // B. LHM 兜底逻辑
+                        if (result == null)
+                        {
+                            if (Settings.DetectedRamTotalGB <= 0)
+                            {
+                                lock (_lock)
+                                {
+                                    if (_sensorMap.TryGetSensor("MEM.Used", out var u) && _sensorMap.TryGetSensor("MEM.Available", out var a))
+                                    {
+                                        if (u.Value.HasValue && a.Value.HasValue)
+                                        {
+                                            float rawTotal = u.Value.Value + a.Value.Value;
+                                            Settings.DetectedRamTotalGB = rawTotal > 512.0f ? rawTotal / 1024.0f : rawTotal;
+                                        }
                                     }
                                 }
                             }
+                            // Break 后走下方通用传感器取值
                         }
-                        // Break 后走下方通用传感器取值
-                    }
-                    else
-                    {
-                        // 如果走了计数器，直接返回，不走下方 break
-                        break; 
-                    }
-                    break;
-
-                // 7. 显存
-                case "GPU.VRAM":
-                    // 注意：这里递归调用了 GetValue，会用到缓存，非常高效
-                    float? used = GetValue("GPU.VRAM.Used");
-                    float? total = GetValue("GPU.VRAM.Total");
-                    if (used.HasValue && total.HasValue && total > 0)
-                    {
-                        if (Settings.DetectedGpuVramTotalGB <= 0) Settings.DetectedGpuVramTotalGB = total.Value / 1024f;
-                        // 单位转换
-                        if (total > 10485760) { used /= 1048576f; total /= 1048576f; }
-                        result = used / total * 100f;
-                    }
-                    else
-                    {
-                        lock (_lock) { if (_sensorMap.TryGetSensor("GPU.VRAM.Load", out var s) && s.Value.HasValue) result = s.Value; }
-                    }
-                    break;
-
-                // 8. 风扇/泵 (带 Max 记录) + [终极优化：缓存优先 -> 急速反向查找]
-                case "CPU.Fan":
-                case "CPU.Pump":
-                case "CASE.Fan":
-                case "GPU.Fan":
-                    string prefFan = "";
-                    if (key == "CPU.Fan") prefFan = _cfg.PreferredCpuFan;
-                    else if (key == "CPU.Pump") prefFan = _cfg.PreferredCpuPump;
-                    else if (key == "CASE.Fan") prefFan = _cfg.PreferredCaseFan;
-
-                    // A. 查对象缓存 (O(1) 访问)
-                    bool foundFan = false;
-                    if (_manualSensorCache.TryGetValue(key, out var cachedFan))
-                    {
-                        if (cachedFan.ConfigSource == prefFan) // 校验配置未变
+                        else
                         {
-                            result = cachedFan.Sensor.Value;
-                            foundFan = true;
+                            // 如果走了计数器，直接返回，不走下方 break
+                            break; 
                         }
-                    }
+                        break;
 
-                    // B. 缓存失效，执行急速反向查找
-                    if (!foundFan)
-                    {
-                        ISensor? s = FindSensorReverse(prefFan, SensorType.Fan);
-                        if (s != null)
+                    // 7. 显存
+                    case "GPU.VRAM":
+                        // 注意：这里递归调用了 GetValue，会用到缓存，非常高效
+                        float? used = GetValue("GPU.VRAM.Used");
+                        float? total = GetValue("GPU.VRAM.Total");
+                        if (used.HasValue && total.HasValue && total > 0)
                         {
-                            _manualSensorCache[key] = (s, prefFan); // 更新缓存
-                            result = s.Value;
+                            if (Settings.DetectedGpuVramTotalGB <= 0) Settings.DetectedGpuVramTotalGB = total.Value / 1024f;
+                            // 单位转换
+                            if (total > 10485760) { used /= 1048576f; total /= 1048576f; }
+                            result = used / total * 100f;
                         }
-                        else 
+                        else
                         {
-                            // 没找到，走自动
-                            lock (_lock)
+                            lock (_lock) { if (_sensorMap.TryGetSensor("GPU.VRAM.Load", out var s) && s.Value.HasValue) result = s.Value; }
+                        }
+                        break;
+
+                    // 8. 风扇/泵 (带 Max 记录) + [终极优化：缓存优先 -> 急速反向查找]
+                    case "CPU.Fan":
+                    case "CPU.Pump":
+                    case "CASE.Fan":
+                    case "GPU.Fan":
+                        string prefFan = "";
+                        if (key == "CPU.Fan") prefFan = _cfg.PreferredCpuFan;
+                        else if (key == "CPU.Pump") prefFan = _cfg.PreferredCpuPump;
+                        else if (key == "CASE.Fan") prefFan = _cfg.PreferredCaseFan;
+
+                        // A. 查对象缓存 (O(1) 访问)
+                        bool foundFan = false;
+                        if (_manualSensorCache.TryGetValue(key, out var cachedFan))
+                        {
+                            if (cachedFan.ConfigSource == prefFan) // 校验配置未变
                             {
-                                if (_sensorMap.TryGetSensor(key, out var autoS) && autoS.Value.HasValue)
-                                    result = autoS.Value.Value;
+                                result = cachedFan.Sensor.Value;
+                                foundFan = true;
+                            }
+                        }
+
+                        // B. 缓存失效，执行急速反向查找
+                        if (!foundFan)
+                        {
+                            ISensor? s = FindSensorReverse(prefFan, SensorType.Fan);
+                            if (s != null)
+                            {
+                                _manualSensorCache[key] = (s, prefFan); // 更新缓存
+                                result = s.Value;
+                            }
+                            else 
+                            {
+                                // 没找到，走自动
+                                lock (_lock)
+                                {
+                                    if (_sensorMap.TryGetSensor(key, out var autoS) && autoS.Value.HasValue)
+                                        result = autoS.Value.Value;
+                                }
+                            }
+                        }
+                        if (result.HasValue) _cfg.UpdateMaxRecord(key, result.Value);
+                        break;
+
+                    // [插入/修改逻辑] 主板温度 (缓存 + 急速查找)
+                    case "MOBO.Temp":
+                        string prefMobo = _cfg.PreferredMoboTemp;
+                        bool foundMobo = false;
+
+                        // A. 查缓存
+                        if (_manualSensorCache.TryGetValue(key, out var cachedMobo))
+                        {
+                            if (cachedMobo.ConfigSource == prefMobo)
+                            {
+                                result = cachedMobo.Sensor.Value;
+                                foundMobo = true;
+                            }
+                        }
+
+                        // B. 查找并更新
+                        if (!foundMobo)
+                        {
+                            ISensor? s = FindSensorReverse(prefMobo, SensorType.Temperature);
+                            if (s != null)
+                            {
+                                _manualSensorCache[key] = (s, prefMobo);
+                                result = s.Value;
+                            }
+                        }
+                        // 没找到则 break，走下方通用兜底
+                        break;
+
+                    // ★★★ [新增] FPS 支持 ★★★
+                    case "FPS":
+                        result = _fpsCounter.GetFps();
+                        break;
+
+                    // 默认分支：处理模糊匹配 (StartsWith/Contains)
+                    default:
+                        // 3. 网络与磁盘
+                        if (key.StartsWith("NET"))
+                        {
+                            result = _networkManager.GetBestValue(key, _computer, _cfg, _lastValidMap, _lock);
+                        }
+                        else if (key.StartsWith("DISK"))
+                        {
+                            // ★★★ [修复冲突]：如果用户指定了首选磁盘，必须强制走 DiskManager (LHM) 
+                            // 因为计数器读取的是 _Total (全盘总和)，无法区分特定磁盘
+                            bool isSpecificDisk = !string.IsNullOrEmpty(_cfg.PreferredDisk);
+
+                            // A. 尝试走计数器 (仅在未指定特定磁盘时)
+                            if (useCounter && !isSpecificDisk) // <--- 修改了判断条件
+                            {
+                                if (key == "DISK.Read") result = _perfManager.GetDiskRead();
+                                else if (key == "DISK.Write") result = _perfManager.GetDiskWrite();
+                                else if (key == "DISK.Activity") result = _perfManager.GetDiskActive();
+                            }
+
+                            // B. 如果没开启计数器，或者指定了特定磁盘，走 LHM/DiskManager
+                            if (result == null)
+                            {
+                                result = _diskManager.GetBestValue(key, _computer, _cfg, _lastValidMap, _lock);
+                            }
+                        }
+                        // 5. 频率与功耗
+                        else if (key.Contains("Clock") || key.Contains("Power"))
+                        {
+                            // A. CPU 频率尝试走计数器
+                            if (useCounter && key == "CPU.Clock")
+                            {
+                                result = _perfManager.GetCpuFreq();
+                            }
+                            
+                            // B. 回退
+                            if (result == null)
+                            {
+                                result = GetCompositeValue(key);
+                            }
+                        }
+                        break;
+                }
+
+                // 10. 通用传感器查找 (兜底)
+                if (result == null)
+                {
+                    lock (_lock)
+                    {
+                        if (_sensorMap.TryGetSensor(key, out var sensor))
+                        {
+                            var val = sensor.Value;
+                            if (val.HasValue && !float.IsNaN(val.Value)) 
+                            { 
+                                _lastValidMap[key] = val.Value; 
+                                result = val.Value; 
+                            }
+                            else if (_lastValidMap.TryGetValue(key, out var last))
+                            {
+                                result = last;
                             }
                         }
                     }
-                    if (result.HasValue) _cfg.UpdateMaxRecord(key, result.Value);
-                    break;
-
-                // [插入/修改逻辑] 主板温度 (缓存 + 急速查找)
-                case "MOBO.Temp":
-                    string prefMobo = _cfg.PreferredMoboTemp;
-                    bool foundMobo = false;
-
-                    // A. 查缓存
-                    if (_manualSensorCache.TryGetValue(key, out var cachedMobo))
-                    {
-                        if (cachedMobo.ConfigSource == prefMobo)
-                        {
-                            result = cachedMobo.Sensor.Value;
-                            foundMobo = true;
-                        }
-                    }
-
-                    // B. 查找并更新
-                    if (!foundMobo)
-                    {
-                        ISensor? s = FindSensorReverse(prefMobo, SensorType.Temperature);
-                        if (s != null)
-                        {
-                            _manualSensorCache[key] = (s, prefMobo);
-                            result = s.Value;
-                        }
-                    }
-                    // 没找到则 break，走下方通用兜底
-                    break;
-
-                // ★★★ [新增] FPS 支持 ★★★
-                case "FPS":
-                    result = _fpsCounter.GetFps();
-                    break;
-
-                // 默认分支：处理模糊匹配 (StartsWith/Contains)
-                default:
-                    // 3. 网络与磁盘
-                    if (key.StartsWith("NET"))
-                    {
-                        result = _networkManager.GetBestValue(key, _computer, _cfg, _lastValidMap, _lock);
-                    }
-                    else if (key.StartsWith("DISK"))
-                    {
-                        // ★★★ [修复冲突]：如果用户指定了首选磁盘，必须强制走 DiskManager (LHM) 
-                        // 因为计数器读取的是 _Total (全盘总和)，无法区分特定磁盘
-                        bool isSpecificDisk = !string.IsNullOrEmpty(_cfg.PreferredDisk);
-
-                        // A. 尝试走计数器 (仅在未指定特定磁盘时)
-                        if (useCounter && !isSpecificDisk) // <--- 修改了判断条件
-                        {
-                            if (key == "DISK.Read") result = _perfManager.GetDiskRead();
-                            else if (key == "DISK.Write") result = _perfManager.GetDiskWrite();
-                            else if (key == "DISK.Activity") result = _perfManager.GetDiskActive();
-                        }
-
-                        // B. 如果没开启计数器，或者指定了特定磁盘，走 LHM/DiskManager
-                        if (result == null)
-                        {
-                            result = _diskManager.GetBestValue(key, _computer, _cfg, _lastValidMap, _lock);
-                        }
-                    }
-                    // 5. 频率与功耗
-                    else if (key.Contains("Clock") || key.Contains("Power"))
-                    {
-                         // A. CPU 频率尝试走计数器
-                         if (useCounter && key == "CPU.Clock")
-                         {
-                             result = _perfManager.GetCpuFreq();
-                         }
-                         
-                         // B. 回退
-                         if (result == null)
-                         {
-                             result = GetCompositeValue(key);
-                         }
-                    }
-                    break;
-            }
-
-            // 10. 通用传感器查找 (兜底)
-            if (result == null)
-            {
-                lock (_lock)
-                {
-                    if (_sensorMap.TryGetSensor(key, out var sensor))
-                    {
-                        var val = sensor.Value;
-                        if (val.HasValue && !float.IsNaN(val.Value)) 
-                        { 
-                            _lastValidMap[key] = val.Value; 
-                            result = val.Value; 
-                        }
-                        else if (_lastValidMap.TryGetValue(key, out var last))
-                        {
-                            result = last;
-                        }
-                    }
                 }
-            }
 
-            // ★★★ [新增 4] 写入缓存并返回 ★★★
-            if (result.HasValue)
-            {
-                _tickCache[key] = result.Value;
-                return result.Value;
-            }
+                // ★★★ [新增 4] 写入缓存并返回 ★★★
+                if (result.HasValue)
+                {
+                    _tickCache[key] = result.Value;
+                    return result.Value;
+                }
 
-            return null;
+                return null;
+            }
         }
 
         // =====================================================================

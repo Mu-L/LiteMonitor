@@ -8,7 +8,7 @@ namespace LiteMonitor.src.WebServer
 <head>
     <meta charset='UTF-8'>
     <meta name='viewport' content='width=device-width, initial-scale=1.0'>
-    <title>LiteMonitor Pro</title>
+    <title>LiteMonitor WebServer</title>
     <style>
         :root {
             --bg: #09090b;
