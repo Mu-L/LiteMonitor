@@ -183,7 +183,7 @@ namespace LiteMonitor.src.WebServer
 <body>
 
     <div class='header'>
-        <div class='brand'>Lite<span>Monitor</span></div>
+        <div class='brand'><span>⚡</span>Lite<span>Monitor</span></div>
         <div class='sys-info'>
             <div class='tag'><b>HOST</b> <span id='sys-host'>--</span></div>
             <div class='tag'><b>IP</b> <span id='sys-ip'>--</span></div>
