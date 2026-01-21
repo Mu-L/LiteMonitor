@@ -73,9 +73,12 @@ namespace LiteMonitor.src.SystemServices
                 bool needPawnIO = _cfg.IsAnyEnabled("CPU") && !IsPawnIOInstalled();
                 string fpsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "resources", "LiteMonitorFPS.exe");
                 bool isFpsEnabled = _cfg.IsAnyEnabled("FPS");
-                bool needFPS = forceFpsCheck || (isFpsEnabled && !File.Exists(fpsPath));
+                bool isFpsValid = IsValidExecutable(fpsPath);
+                
+                // 只要 FPS 开启且文件无效，或者被强制检查且文件无效，就需要处理
+                bool needFPS = forceFpsCheck || (isFpsEnabled && !isFpsValid);
 
-                if (needPawnIO || (needFPS && !File.Exists(fpsPath)))
+                if (needPawnIO || (needFPS && !isFpsValid))
                 {
                     _activeDownloadTask = needPawnIO 
                         ? InstallDriverPackage(needFPS) // 重命名为 InstallDriverPackage
