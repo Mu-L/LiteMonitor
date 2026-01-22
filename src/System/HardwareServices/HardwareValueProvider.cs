@@ -61,6 +61,17 @@ namespace LiteMonitor.src.SystemServices
             lock (_lock)
             {
                 _tickCache.Clear();
+
+                // [新增] 集中获取系统电源状态，每轮只调用一次，性能消耗可忽略不计
+                try
+                {
+                    var status = System.Windows.Forms.SystemInformation.PowerStatus;
+                    MetricUtils.IsBatteryCharging = (status.PowerLineStatus == System.Windows.Forms.PowerLineStatus.Online);
+                }
+                catch
+                {
+                    // 兜底：如果 API 失败，保持原值
+                }
             }
 
             // [删除] 旧的 UpdateSystemCpuCounter 逻辑全部移除
@@ -368,20 +379,29 @@ namespace LiteMonitor.src.SystemServices
                         // 真实硬件逻辑
                         lock (_lock) 
                         { 
-                            // [新增] 主动检测充电状态 (无论当前请求哪个电池指标，都尝试读取功耗/电流来更新状态)
-                            // 这样即使只显示电压，也能正确判断是否在充电
-                            if (_sensorMap.TryGetSensor("BAT.Power", out var pSensor) && pSensor.Value.HasValue)
-                            {
-                                MetricUtils.IsBatteryCharging = pSensor.Value.Value < 0;
-                            }
-                            else if (_sensorMap.TryGetSensor("BAT.Current", out var cSensor) && cSensor.Value.HasValue)
-                            {
-                                MetricUtils.IsBatteryCharging = cSensor.Value.Value < 0; // 电流负值表示充电
-                            }
+                            // [修改] 1. 从系统获取充电状态 (已移至 UpdateSystemCpuCounter 集中处理)
+                            // 这里直接使用全局状态即可，无需重复调用 System API
 
                             if (_sensorMap.TryGetSensor(key, out var s) && s.Value.HasValue) 
                             {
-                                result = s.Value.Value;
+                                float val = s.Value.Value;
+
+                                // [修改] 2. 符号修正：充电时功耗/电流应为负号，放电时为正号
+                                if (key == "BAT.Power" || key == "BAT.Current")
+                                {
+                                    if (MetricUtils.IsBatteryCharging)
+                                    {
+                                        // 充电状态：强制显示负值 (用户需求)
+                                        if (val > 0) val = -val;
+                                    }
+                                    else
+                                    {
+                                        // 放电状态：强制显示正值
+                                        if (val < 0) val = -val;
+                                    }
+                                }
+
+                                result = val;
                             }
                         }
                         break;
