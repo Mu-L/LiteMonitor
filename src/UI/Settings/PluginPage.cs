@@ -227,10 +227,10 @@ namespace LiteMonitor.src.UI.SettingsPage
 
             // Real-time visibility toggle
             chk.CheckedChanged += (s, e) => {
-                // [Fix] Suspend layout to avoid flickering and handle churn
-                group.SuspendLayout();
+                // [Fix] Removed SuspendLayout to prevent "Unable to set Win32 parent" crash
+                // group.SuspendLayout();
                 foreach (var c in targetVisibles) c.Visible = chk.Checked;
-                group.ResumeLayout();
+                // group.ResumeLayout();
             };
 
             // 3. Refresh Rate

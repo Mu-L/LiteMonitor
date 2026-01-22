@@ -316,7 +316,14 @@ namespace LiteMonitor.src.SystemServices
             // --- Battery ---
             if (type == HardwareType.Battery)
             {
-                if (s.SensorType == SensorType.Level) return "BAT.Percent";
+                if (s.SensorType == SensorType.Level)
+                {
+                    // Fix: 过滤掉电池损耗/健康度数据 (通常也标记为 Level 类型)
+                    // 用户反馈 #199: Battery level shows Degradation level
+                    if (Has(name, "Degradation") || Has(name, "Wear")) return null;
+                    
+                    return "BAT.Percent";
+                }
                 if (s.SensorType == SensorType.Power) return "BAT.Power";
                 if (s.SensorType == SensorType.Voltage) return "BAT.Voltage";
                 if (s.SensorType == SensorType.Current) return "BAT.Current";

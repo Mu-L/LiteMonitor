@@ -38,6 +38,16 @@ namespace LiteMonitor.src.UI.SettingsPage
             Config = cfg;
             MainForm = form;
             UI = ui;
+
+            // ★★★ Fix: Ensure UI controls reflect the Config values immediately ★★★
+            // This prevents controls from defaulting to false/0 and overwriting the config on Save()
+            if (Config != null)
+            {
+                foreach (var action in _refreshActions)
+                {
+                    action.Invoke();
+                }
+            }
         }
 
         public void RegisterDelaySave(Action action)
