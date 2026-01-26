@@ -92,7 +92,7 @@ namespace LiteMonitor.src.Core
             }
 
             if (type == MetricType.DataSpeed || type == MetricType.DataSize)
-                return FormatDataSizeParts(v, -1);
+                return FormatDataSizeParts(v, 1);
 
             // 使用 GetDefaultUnit 统一获取单位 
             // 注意：FormatValueParts 主要用于 Panel 绘制，所以这里使用 Panel 上下文
@@ -123,7 +123,7 @@ namespace LiteMonitor.src.Core
                 MetricType.Percent     => ($"{v:0.0}", unit + suffix),
                 MetricType.Voltage     => ($"{v:F2}", unit + suffix),
                 MetricType.Current     => ($"{v:F2}", unit + suffix),
-                MetricType.Power       => (key.StartsWith("BAT") ? $"{v:F1}" : $"{v:F0}", unit + suffix),
+                MetricType.Power       => (key.StartsWith("BAT") ? $"{v:F1}" : $"{v:F1}", unit + suffix),
                 _                      => ($"{v:0.0}", "")
             };
         }
@@ -186,18 +186,47 @@ namespace LiteMonitor.src.Core
         }
         // [Refactor] 统一数据大小格式化逻辑
         
+        /// <summary>
+        /// 将字节数转换为带单位的友好显示，返回数值字符串与单位字符串。
+        /// </summary>
+        /// <param name="bytes">原始字节数，允许为负值，内部会按绝对值处理。</param>
+        /// <param name="decimals">
+        /// 保留小数位数：
+        /// -1 表示自动：KB/MB 保留 1 位，GB 及以上保留 2 位；
+        /// 0  表示整数；
+        /// >0 表示固定小数位。
+        /// </param>
+        /// <returns>
+        /// 元组：(数值字符串, 单位字符串)，例如 ("12.3", "MB")。
+        /// </returns>
         public static (string val, string unit) FormatDataSizeParts(double bytes, int decimals = -1)
         {
+            // 单位列表，从 KB 开始，后续依次乘以 1024 得到 MB、GB、TB、PB
             string[] sizes = { "KB", "MB", "GB", "TB", "PB" };
-            double len = bytes / 1024.0; 
-            int order = 0;
-            while (len >= 1024 && order < sizes.Length - 1) { order++; len /= 1024.0; }
 
-            string format = decimals switch {
+            // 将字节转换为 KB 作为基准
+            double len = bytes / 1024.0;
+
+            // 逐级放大单位，直到数值小于 1024 或到达最大单位
+            int order = 0;
+            while (len >= 1024 && order < sizes.Length - 1)
+            {
+                order++;
+                len /= 1024.0;
+            }
+
+            // 根据 order 和 decimals 参数决定最终格式字符串
+            string format = decimals switch
+            {
+                // 自动模式：KB/MB 用 1 位小数，GB 及以上用 2 位小数
                 < 0 => order <= 1 ? "0.0" : "0.00",
-                0 => "0",
-                _ => "0." + new string('0', decimals)
+                // 整数模式
+                0   => "0",
+                // 固定小数位模式，拼接出如 "0.000" 的格式
+                _   => "0." + new string('0', decimals)
             };
+
+            // 返回格式化后的数值与对应单位
             return (len.ToString(format), sizes[order]);
         }
 
@@ -242,7 +271,9 @@ namespace LiteMonitor.src.Core
             string numStr = clean.Substring(0, splitIndex);
             string unit = clean.Substring(splitIndex).Trim();
 
+            // [Refactor] 统一数值格式化
             if (double.TryParse(numStr, out double num))
+                // 数值 >= 100 时，四舍五入为整数
                 return (num >= 100 ? ((int)Math.Round(num)).ToString() : numStr) + unit;
             
             return clean;
