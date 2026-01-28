@@ -211,21 +211,20 @@ namespace LiteMonitor.src.Core.Actions
                 bool isRunning = server.IsRunning;
                 int targetPort = cfg.WebServerPort;
                 int currentPort = server.CurrentRunningPort;
+                string targetPwd = cfg.WebServerPassword;
+                string currentPwd = server.CurrentPassword;
 
-                // 只有状态不一致时才进行操作
                 if (shouldRun)
                 {
-                    // 如果需要运行，但当前没运行，或者端口变了 -> 重启/启动
-                    if (!isRunning || targetPort != currentPort)
+                    // 端口变更 或 密码变更 均触发重启
+                    if (!isRunning || targetPort != currentPort || targetPwd != currentPwd)
                     {
                         server.Stop();
                         if (!server.Start(out string err))
                         {
-                            // 如果是自动应用设置时失败，暂时只记录日志，避免在设置界面疯狂弹窗
                             System.Diagnostics.Debug.WriteLine("WebServer restart failed: " + err);
                         }
                     }
-                    // else: 已经在运行且端口没变，保持现状，不要断开连接
                 }
                 else
                 {

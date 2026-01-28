@@ -113,8 +113,10 @@
     "ActionTrafficHistory": "通信量履歴",
     "WebServer": "ウェブ表示",
     "WebServerPort": "ウェブポート",
+    "WebServerPassword": "パスワード",
+    "WebServerPasswordTip": "空で設定なし",
     "OpenWeb": "ウェブを開く",
-    "WebServerTip": "⚠️有効にすると「ローカルIP:ポート」で監視データを確認できます。",
+    "WebServerTip": "⚠️有効後、スマホはLAN「IP:ポート」または「IPv6:ポート」でアクセス可",
 
     "Appearance": "外観設定",
     "Theme": "テーマ",

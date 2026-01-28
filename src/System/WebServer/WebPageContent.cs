@@ -202,6 +202,20 @@ namespace LiteMonitor.src.WebServer
          .dash-val.is-1 { color: var(--c-1); }
          .dash-val.is-2 { color: var(--c-2); }
          
+         /* Auth Modal */
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 999; justify-content: center; align-items: center; }
+        .modal { background: var(--card); padding: 25px; border-radius: 12px; border: 1px solid var(--border); width: 300px; display: flex; flex-direction: column; gap: 15px; }
+        .modal h3 { margin: 0; font-size: 1.2rem; }
+        .inp { background: #000; border: 1px solid var(--border); color: #fff; padding: 10px; border-radius: 6px; outline: none; }
+        .inp.error { border-color: var(--c-2); animation: shake 0.4s ease-in-out; }
+        .btn { background: var(--c-0); border: none; padding: 10px; border-radius: 6px; color: #000; font-weight: bold; cursor: pointer; }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+         
          /* --- Color Definitions --- */
 
         /* --- Color Definitions --- */
@@ -253,9 +267,9 @@ namespace LiteMonitor.src.WebServer
     <div class='header'>
         <div class='brand'><span>⚡</span>Lite<span>Monitor</span></div>
         <div class='sys-info'>
-            <div class='tag'><b>HOST</b> <span id='sys-host'>--</span></div>
             <div class='tag'><b>IP</b> <span id='sys-ip'>--</span></div>
             <div class='tag'><b>RUNTIME</b> <span id='sys-uptime'>--</span></div>
+            <div id='btn-auth' class='tag' style='cursor:pointer;display:none' onclick='showAuth()' title='输入密码 / Enter Password'><b>AUTH</b> <span>🔒</span></div>
              <div class='tag'>
                 <div id='status-dot' style='width:8px; height:8px; border-radius:50%; background:var(--text-sub); margin-right:6px;'></div>
                 <span id='status-text' style='font-weight:700; font-size:0.8rem;'>--</span>
@@ -265,19 +279,76 @@ namespace LiteMonitor.src.WebServer
 
     <div class='dashboard' id='board'></div>
 
-    <script>
-        const board = document.getElementById('board');
-        const cards = {};
+    <div id='auth-modal' class='modal-overlay'>
+        <div class='modal'>
+            <h3>访问密码 / Password</h3>
+            <input type='password' id='pwd-input' class='inp' placeholder='输入密码 / Enter Password...' />
+            <button class='btn' onclick='savePwd()'>连接 / Connect</button>
+        </div>
+    </div>
 
+    <script>
+        let pwd = localStorage.getItem('ws_pwd') || '';
+        const AUTH_REQUIRED = {{AUTH_REQUIRED}};
+        const board = document.getElementById('board');
+        
+        if (AUTH_REQUIRED) {
+            document.getElementById('btn-auth').style.display = 'flex';
+            if (!pwd) showAuth();
+        }
+        
+        const cards = {};
         const statusDot = document.getElementById('status-dot');
         const statusText = document.getElementById('status-text');
         let ws = null;
         let reconnectTimer = null;
+        
+        function showAuth() {
+            const modal = document.getElementById('auth-modal');
+            if (modal.style.display === 'flex') return;
+            modal.style.display = 'flex';
+            const inp = document.getElementById('pwd-input');
+            inp.value = pwd;
+            inp.classList.remove('error');
+            inp.focus();
+        }
+
+        async function savePwd() {
+            const inp = document.getElementById('pwd-input');
+            const newPwd = inp.value;
+            
+            // 验证密码
+            if (AUTH_REQUIRED) {
+                try {
+                    const res = await fetch('/api/snapshot?pwd=' + encodeURIComponent(newPwd));
+                    if (res.status === 401) {
+                        // 密码错误：抖动 + 清空
+                        inp.classList.remove('error');
+                        void inp.offsetWidth; // trigger reflow
+                        inp.classList.add('error');
+                        inp.value = '';
+                        inp.placeholder = '密码错误 / Wrong Password';
+                        return;
+                    }
+                } catch(e) { 
+                    console.error(e); 
+                }
+            }
+
+            pwd = newPwd;
+            localStorage.setItem('ws_pwd', pwd);
+            document.getElementById('auth-modal').style.display = 'none';
+            if (ws) { ws.onclose = null; ws.close(); ws = null; }
+            connect();
+        }
+
+        document.getElementById('pwd-input').addEventListener('keyup', e => { if (e.key === 'Enter') savePwd(); });
 
         function connect() {
             if (ws) return;
             const protocol = location.protocol === 'https:' ? 'wss://' : 'ws://';
-            ws = new WebSocket(protocol + location.host);
+            const qs = pwd ? '?pwd=' + encodeURIComponent(pwd) : '';
+            ws = new WebSocket(protocol + location.host + qs);
 
             ws.onopen = () => {
                 statusDot.style.background = 'var(--c-0)';
@@ -289,7 +360,6 @@ namespace LiteMonitor.src.WebServer
                 try {
                     const d = JSON.parse(event.data);
                     if (d.sys) {
-                        document.getElementById('sys-host').innerText = d.sys.host;
                         document.getElementById('sys-ip').innerText = `${d.sys.ip}:${d.sys.port}`;
                         document.getElementById('sys-uptime').innerText = d.sys.uptime;
                     }
@@ -301,7 +371,26 @@ namespace LiteMonitor.src.WebServer
                 statusDot.style.background = 'var(--c-2)';
                 statusText.innerText = 'OFFLINE';
                 ws = null;
-                if (!reconnectTimer) reconnectTimer = setInterval(connect, 2000);
+                
+                const handleReconnect = () => {
+                    if (!reconnectTimer) reconnectTimer = setInterval(connect, 2000);
+                };
+
+                if (AUTH_REQUIRED) {
+                    // Check if auth failed
+                    fetch('/api/snapshot?pwd=' + encodeURIComponent(pwd))
+                        .then(res => { 
+                            if (res.status === 401) {
+                                showAuth();
+                                if (reconnectTimer) { clearInterval(reconnectTimer); reconnectTimer = null; }
+                            } else {
+                                handleReconnect();
+                            }
+                        })
+                        .catch(() => handleReconnect());
+                } else {
+                    handleReconnect();
+                }
             };
 
             ws.onerror = () => ws && ws.close();

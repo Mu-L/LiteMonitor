@@ -16,6 +16,9 @@ namespace LiteMonitor.src.WebServer
         private TcpListener? _listener;
         private volatile bool _isRunning = false;
         private int _currentRunningPort = -1;
+
+        public string CurrentPassword { get;set; }
+
         private readonly Settings _cfg;
         
         // [Refactor] Decoupled WebSocket Logic
@@ -60,6 +63,7 @@ namespace LiteMonitor.src.WebServer
 
                 _isRunning = true;
                 _currentRunningPort = port;
+                CurrentPassword = _cfg.WebServerPassword;
 
                 // 1. 启动监听连接的循环
                 Task.Run(ListenLoop);
@@ -135,7 +139,6 @@ namespace LiteMonitor.src.WebServer
 
             // "sys" object
             writer.WriteStartObject("sys");
-            writer.WriteString("host", InfoService.Instance.GetValue("HOST"));
             writer.WriteString("ip", localIp);
             writer.WriteNumber("port", _currentRunningPort);
             writer.WriteString("uptime", (DateTime.Now - Process.GetCurrentProcess().StartTime).ToString(@"dd\.hh\:mm\:ss"));

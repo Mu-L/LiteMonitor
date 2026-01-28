@@ -111,8 +111,10 @@
     "ActionTrafficHistory": "打开历史流量统计",
     "WebServer": "网页版显示",
     "WebServerPort": "网页端口",
+    "WebServerPassword": "访问密码",
+    "WebServerPasswordTip": "留空即无密码",
     "OpenWeb": "打开网页",
-    "WebServerTip": "⚠️说明：开启网页版显示后，手机可通过“内网IP:端口”打开网页查看监控数据。",
+    "WebServerTip": "⚠️开启网页版后，手机可通过局域网“内网IP:端口”访问，或“IPv6:端口”远程访问",
 
     "Appearance": "外观设置",
     "Theme": "主题",

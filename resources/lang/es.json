@@ -112,8 +112,10 @@
     "ActionTrafficHistory": "Historial datos",
     "WebServer": "Mostrar web",
     "WebServerPort": "Puerto web",
+    "WebServerPassword": "Contraseña",
+    "WebServerPasswordTip": "Vacío para ninguna",
     "OpenWeb": "Abrir web",
-    "WebServerTip": "⚠️Activa para consultar datos a través de 'IP:puertos'.",
+    "WebServerTip": "⚠️Web activa. Acceso móvil vía LAN 'IP:Puerto' o 'IPv6:Puerto'.",
 
     "Appearance": "Apariencia",
     "Theme": "Tema",

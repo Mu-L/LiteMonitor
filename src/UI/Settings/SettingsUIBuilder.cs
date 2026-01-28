@@ -36,9 +36,9 @@ namespace LiteMonitor.src.UI.SettingsPage
         /// <summary>
         /// Adds a string input (LiteUnderlineInput)
         /// </summary>
-        public static LiteUnderlineInput AddInput(this LiteSettingsGroup group, SettingsPageBase page, string titleKey, Func<string> get, Action<string> set, string placeholder = "", HorizontalAlignment align = HorizontalAlignment.Left)
+        public static LiteUnderlineInput AddInput(this LiteSettingsGroup group, SettingsPageBase page, string titleKey, Func<string> get, Action<string> set, string placeholder = "", int width = 100, HorizontalAlignment align = HorizontalAlignment.Left)
         {
-            var input = new LiteUnderlineInput(get(), "", "", 100, null, align);
+            var input = new LiteUnderlineInput(get(), "", "", width, null, align);
             if (!string.IsNullOrEmpty(placeholder)) input.Placeholder = placeholder;
 
             // Immediate binding
@@ -241,8 +241,6 @@ namespace LiteMonitor.src.UI.SettingsPage
         public static LiteActionRow AddLink(this LiteSettingsGroup group, string title, string linkText, Action onClick)
         {
             var link = new LiteLink(linkText, onClick);
-            // Add padding for better alignment
-            link.Padding = new Padding(0, 5, 5, 0); 
             return group.AddAction(title, link);
         }
 

@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using System.Text.Json;
 using System.Buffers;
 using System.Diagnostics;
+using LiteMonitor.src.Core;
 
 namespace LiteMonitor.src.WebServer
 {
@@ -126,6 +127,12 @@ namespace LiteMonitor.src.WebServer
             
             if (path.StartsWith("/api/snapshot"))
             {
+                if (!CheckAuth(request))
+                {
+                    SendHttpResponse(stream, 401, "text/plain", Encoding.UTF8.GetBytes("Unauthorized"), 12);
+                    return;
+                }
+
                 using var ms = new MemoryStream();
                 using var writer = new Utf8JsonWriter(ms);
                 _dataProvider(writer);
@@ -140,14 +147,29 @@ namespace LiteMonitor.src.WebServer
             {
                 // 默认返回首页
                 string iconBase64 = WebPageContent.GetAppIconBase64();
-                string html = WebPageContent.IndexHtml.Replace("{{FAVICON}}", 
-                    !string.IsNullOrEmpty(iconBase64) 
-                    ? $"<link rel='icon' type='image/png' href='data:image/png;base64,{iconBase64}'>" 
-                    : "");
+                bool authRequired = !string.IsNullOrEmpty(Settings.Load().WebServerPassword);
+                
+                string html = WebPageContent.IndexHtml
+                    .Replace("{{FAVICON}}", !string.IsNullOrEmpty(iconBase64) ? $"<link rel='icon' type='image/png' href='data:image/png;base64,{iconBase64}'>" : "")
+                    .Replace("{{AUTH_REQUIRED}}", authRequired.ToString().ToLower());
                 
                 byte[] data = Encoding.UTF8.GetBytes(html);
                 SendHttpResponse(stream, 200, "text/html; charset=utf-8", data, data.Length);
             }
+        }
+
+        private bool CheckAuth(string requestHeader)
+        {
+            var pwd = Settings.Load().WebServerPassword;
+            if (string.IsNullOrEmpty(pwd)) return true;
+
+            var firstLine = requestHeader.Split('\n')[0]; 
+            var match = Regex.Match(firstLine, @"[?&]pwd=([^&\s]+)");
+            if (match.Success)
+            {
+                return match.Groups[1].Value == pwd;
+            }
+            return false;
         }
 
         private void SendHttpResponse(NetworkStream stream, int code, string type, byte[] body, int len)
@@ -329,6 +351,12 @@ namespace LiteMonitor.src.WebServer
         {
             try
             {
+                if (!CheckAuth(request))
+                {
+                    SendHttpResponse(stream, 401, "text/plain", Encoding.UTF8.GetBytes("Unauthorized"), 12);
+                    return false;
+                }
+
                 // 1. 提取 Sec-WebSocket-Key
                 var match = Regex.Match(request, "Sec-WebSocket-Key: (.*)");
                 if (!match.Success) return false;

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -21,6 +22,7 @@ namespace LiteMonitor.src.Plugins
         private readonly List<PluginTemplate> _templates = new();
         private readonly Dictionary<string, System.Timers.Timer> _timers = new();
         private readonly Dictionary<string, System.Threading.CancellationTokenSource> _cts = new();
+        private readonly ConcurrentDictionary<string, int> _consecutiveFailures = new();
         private readonly Dictionary<string, string> _configSnapshots = new();
         private readonly PluginExecutor _executor;
 
@@ -158,10 +160,6 @@ namespace LiteMonitor.src.Plugins
                     var tmpl = _templates.FirstOrDefault(x => x.Id == inst.TemplateId);
                     if (tmpl != null)
                     {
-                        // [Optimization] Defer Save until loop ends, handled implicitly if SyncMonitorItem returns true?
-                        // Actually Reload is triggered by Settings UI which saves after apply.
-                        // So we can skip internal save here or force one at end.
-                        // But SyncMonitorItem logic is complex, safer to let it update memory and we save once.
                         
                         PluginMonitorSyncService.Instance.SyncMonitorItem(inst, tmpl, saveIfChanged: false);
                         StartInstance(inst, tmpl);
@@ -196,6 +194,9 @@ namespace LiteMonitor.src.Plugins
                 cts.Dispose();
                 _cts.Remove(instanceId);
             }
+
+            // Reset failure count
+            _consecutiveFailures.TryRemove(instanceId, out _);
         }
 
         public void Start()
@@ -304,17 +305,28 @@ namespace LiteMonitor.src.Plugins
                     // 动态调整间隔：如果失败，使用快速重试间隔 (5s)；如果成功，恢复正常间隔
                     if (!success)
                     {
-                        newTimer.Interval = PluginConstants.RETRY_INTERVAL_MS; 
+                        // 失败逻辑：线性退避 (5s, 10s, 15s... max 60s)
+                        int fails = _consecutiveFailures.AddOrUpdate(inst.Id, 1, (k, v) => v + 1);
+                        int backoff = Math.Min(fails * PluginConstants.RETRY_INTERVAL_MS, 60000);
+                        
+                        newTimer.Interval = backoff;
+                        System.Diagnostics.Debug.WriteLine($"Plugin {inst.Id} failed ({fails} times). Retry in {backoff}ms.");
                     }
                     else
                     {
+                        // 成功：重置失败计数
+                        if (_consecutiveFailures.ContainsKey(inst.Id)) _consecutiveFailures.TryRemove(inst.Id, out _);
                         newTimer.Interval = interval * 1000;
                     }
                 }
                 catch (Exception ex)
                 {
                     System.Diagnostics.Debug.WriteLine($"Timer execution failed: {ex.Message}");
-                    newTimer.Interval = PluginConstants.RETRY_INTERVAL_MS; // Exception case also fast retry
+                    
+                    // 异常逻辑：同样应用退避
+                    int fails = _consecutiveFailures.AddOrUpdate(inst.Id, 1, (k, v) => v + 1);
+                    int backoff = Math.Min(fails * PluginConstants.RETRY_INTERVAL_MS, 60000);// 最大 60s
+                    newTimer.Interval = backoff;
                 }
                 finally 
                 {

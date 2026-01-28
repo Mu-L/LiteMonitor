@@ -168,11 +168,20 @@ namespace LiteMonitor.src.UI.SettingsPage
                 60
             );
 
+            
+
+            // Password
+            group.AddInput(this, "Menu.WebServerPassword",
+                () => Config.WebServerPassword,
+                v => Config.WebServerPassword = v,
+                LanguageManager.T("Menu.WebServerPasswordTip"),
+                100, HorizontalAlignment.Center);
+
             // C. API Link
             bool isChinese = !string.IsNullOrEmpty(Config.Language) && 
                                      Config.Language.StartsWith("zh", StringComparison.OrdinalIgnoreCase);
             
-            group.AddLink("API (JSON): http://<IP>:<Port>/api/snapshot ", 
+            group.AddLink("API (JSON): http://<IP>:<Port>/api/snapshot?pwd=123456 ", 
                 isChinese ? "内网无法连接？" : "Connection Issue?", 
                 () => ShowFirewallHelp(isChinese));
 

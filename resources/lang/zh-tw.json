@@ -108,8 +108,10 @@
     "ActionTrafficHistory": "開啟歷史流量統計",
     "WebServer": "網頁顯示",
     "WebServerPort": "網頁連接埠",
+    "WebServerPassword": "訪問密碼",
+    "WebServerPasswordTip": "留空即無密碼",
     "OpenWeb": "開啟網頁",
-    "WebServerTip": "⚠️開啟後，可透過「內網IP:連接埠」查看監控數據。",
+    "WebServerTip": "⚠️開啟網頁版後，手機可透過區網「內網IP:連接埠」訪問，或「IPv6:連接埠」遠端訪問",
 
     "Appearance": "外觀設定",
     "Theme": "主題",

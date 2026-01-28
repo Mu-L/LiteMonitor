@@ -138,6 +138,7 @@ namespace LiteMonitor
 
         public bool WebServerEnabled { get; set; } = false;
         public int WebServerPort { get; set; } = 5000; // 默认端口
+        public string WebServerPassword { get; set; } = ""; // 访问密码
         
         public ThresholdsSet Thresholds { get; set; } = new ThresholdsSet();
 
@@ -175,6 +176,13 @@ namespace LiteMonitor
 
             // 委托给 SettingsHelper 加载
             _instance = SettingsHelper.Load(forceReload);
+            
+            // 兼容旧配置：如果 WebServerPassword 为 null，初始化为空字符串
+            if (_instance.WebServerPassword == null)
+            {
+                _instance.WebServerPassword = "";
+            }
+
             return _instance;
         }
 
@@ -191,7 +199,10 @@ namespace LiteMonitor
     {
         // ★★★ 核心优化：使用字符串驻留池解决内存浪费 ★★★
         private string _key = "";
-        
+
+        // 极简缓存：复用首个实例作为原型 (0 GC)
+        private static readonly ConcurrentDictionary<string, MonitorItemConfig> _protoCache = new ConcurrentDictionary<string, MonitorItemConfig>();
+
         // [Optimization] Cache keys to avoid string concatenation in hot paths
         [JsonIgnore] public string CachedPropLabelKey { get; private set; } = "";
         [JsonIgnore] public string CachedPropShortLabelKey { get; private set; } = "";
@@ -204,38 +215,46 @@ namespace LiteMonitor
         public string Key 
         { 
             get => _key; 
-            // ★★★ 修改：使用可回收的 UIUtils.Intern ★★★
             set 
             {
-                _key = UIUtils.Intern(value ?? "");
+                string k = UIUtils.Intern(value ?? "");
+                if (_key == k) return;
+                _key = k;
+
+                // 极简模式：直接从缓存的原型对象拷贝所有属性，无需额外对象分配
+                if (_protoCache.TryGetValue(k, out var p))
+                {
+                    CachedPropLabelKey = p.CachedPropLabelKey;
+                    CachedPropShortLabelKey = p.CachedPropShortLabelKey;
+                    CachedItemsKey = p.CachedItemsKey;
+                    CachedUIGroup = p.CachedUIGroup;
+                    CachedGroupsKey = p.CachedGroupsKey;
+                    CachedDashColorKey = p.CachedDashColorKey;
+                    CachedDashUnitKey = p.CachedDashUnitKey;
+                    return;
+                }
+
+                // 首次计算
                 CachedPropLabelKey = UIUtils.Intern("PROP.Label." + _key);
                 CachedPropShortLabelKey = UIUtils.Intern("PROP.ShortLabel." + _key);
                 CachedItemsKey = UIUtils.Intern("Items." + _key);
 
-                // Pre-calculate UIGroup
-                if (_key == "MEM.Load" || 
-                    _key == "MOBO.Temp" || 
-                    _key == "DISK.Temp" || 
-                    _key == "CASE.Fan"|| 
-                    _key == "FPS") 
-                { 
+                if (_key == "MEM.Load" || _key == "MOBO.Temp" || _key == "DISK.Temp" || _key == "CASE.Fan"|| _key == "FPS") 
                     CachedUIGroup = "HOST"; 
-                } 
                 else if (_key.StartsWith("DASH."))
                 {
                     CachedUIGroup = "DASH";
-                    // DASH specific keys
-                    var dashKey = _key.Substring(5);
-                    CachedDashColorKey = UIUtils.Intern(dashKey + ".Color");
-                    CachedDashUnitKey = UIUtils.Intern(dashKey + ".Unit");
+                    string sub = _key.Substring(5);
+                    CachedDashColorKey = UIUtils.Intern(sub + ".Color");
+                    CachedDashUnitKey = UIUtils.Intern(sub + ".Unit");
                 }
                 else
-                {
-                    // [Optimization] Intern the group name to avoid duplicates (e.g. 10 items sharing "DATA")
                     CachedUIGroup = UIUtils.Intern(_key.Split('.')[0]); 
-                }
                 
                 CachedGroupsKey = UIUtils.Intern("Groups." + CachedUIGroup);
+                
+                // 存入缓存
+                _protoCache[k] = this;
             }
         }
         // ★★★ [优化] 分离用户配置与系统动态值 ★★★

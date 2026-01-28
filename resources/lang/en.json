@@ -112,8 +112,10 @@
     "ActionTrafficHistory": "Traffic History",
     "WebServer": "Web Display",
     "WebServerPort": "Web Port",
+    "WebServerPassword": "Password",
+    "WebServerPasswordTip": "Empty for none",
     "OpenWeb": "Open Web",
-    "WebServerTip": "⚠️Enable to view data via 'IP:Port'.",
+    "WebServerTip": "⚠️Web enabled. Mobile access via LAN 'IP:Port' or remote 'IPv6:Port'.",
 
     "Appearance": "Appearance",
     "Theme": "Theme",

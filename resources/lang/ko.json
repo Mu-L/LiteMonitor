@@ -112,8 +112,10 @@
     "ActionTrafficHistory": "트래픽 기록",
     "WebServer": "웹 표시",
     "WebServerPort": "웹 포트",
+    "WebServerPassword": "비밀번호",
+    "WebServerPasswordTip": "공백 시 없음",
     "OpenWeb": "웹 열기",
-    "WebServerTip": "⚠️활성화하면 '내부망IP:포트'로 모니터링 데이터를 확인할 수 있습니다.",
+    "WebServerTip": "⚠️활성화 시 모바일은 '내부IP:포트' 또는 'IPv6:포트'로 접속 가능",
 
     "Appearance": "테마 설정",
     "Theme": "테마",

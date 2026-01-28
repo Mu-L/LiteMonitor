@@ -112,8 +112,10 @@
     "ActionTrafficHistory": "История",
     "WebServer": "Веб-интерфейс",
     "WebServerPort": "Порт веб",
+    "WebServerPassword": "Пароль",
+    "WebServerPasswordTip": "Пусто для сброса",
     "OpenWeb": "Открыть веб",
-    "WebServerTip": "⚠️Включите для просмотра данных через 'IP:порт'.",
+    "WebServerTip": "⚠️Веб включен. Доступ: LAN 'IP:Порт' или 'IPv6:Порт'.",
 
     "Appearance": "Внешний вид",
     "Theme": "Тема",
