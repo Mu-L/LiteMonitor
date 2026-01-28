@@ -80,17 +80,11 @@ namespace LiteMonitor.src.SystemServices
         }
 
         // ===========================================================
-        // 获取最佳磁盘数值 (原 Logic.cs 中的 GetDiskValue/GetBestDiskValue)
+        // 获取最佳磁盘数值 (已简化：Preferred 逻辑已移至 ValueProvider 静态缓存)
         // ===========================================================
         public float? GetBestValue(string key, Computer computer, Settings cfg, Dictionary<string, float> lastValidMap, object syncLock)
         {
-            if (!string.IsNullOrWhiteSpace(cfg.PreferredDisk))
-            {
-                var hw = computer.Hardware.FirstOrDefault(h => h.HardwareType == HardwareType.Storage && h.Name.Equals(cfg.PreferredDisk, StringComparison.OrdinalIgnoreCase));
-                if (hw != null) return ReadDiskSensor(hw, key, lastValidMap, syncLock);
-            }
-
-            // 1. 运行时缓存
+            // 1. 运行时缓存 (针对自动选择模式)
             if (_cachedDiskHw != null)
             {
                 // ★★★ 【修复 2】存活检查：防止持有僵尸对象的引用 ★★★

@@ -239,9 +239,10 @@ namespace LiteMonitor.src.Core
             // 将字节转换为 KB 作为基准
             double len = bytes / 1024.0;
 
-            // 逐级放大单位，直到数值小于 1024 或到达最大单位
+            // 逐级放大单位，直到数值小于 1000 或到达最大单位
+            // [Optimize] 使用 1000 而不是 1024 作为阈值，避免出现 "1023 KB" 这种较长的字符串，提前转换为 "0.99 MB"
             int order = 0;
-            while (len >= 1024 && order < sizes.Length - 1)
+            while (len >= 1000 && order < sizes.Length - 1)
             {
                 order++;
                 len /= 1024.0;

@@ -180,17 +180,10 @@ namespace LiteMonitor.src.SystemServices
         }
 
         // ===========================================================
-        // 获取最佳网络数值 (原 Logic.cs 中的 GetNetworkValue/GetBestNetworkValue)
+        // 获取最佳网络数值 (已简化：Preferred 逻辑已移至 ValueProvider 静态缓存)
         // ===========================================================
         public float? GetBestValue(string key, Computer computer, Settings cfg, Dictionary<string, float> lastValidMap, object syncLock)
         {
-            // 1. 优先手动指定
-            if (!string.IsNullOrWhiteSpace(cfg.PreferredNetwork))
-            {
-                var hw = computer.Hardware.FirstOrDefault(h => h.HardwareType == HardwareType.Network && h.Name.Equals(cfg.PreferredNetwork, StringComparison.OrdinalIgnoreCase));
-                if (hw != null) return ReadNetworkSensor(hw, key, lastValidMap, syncLock);
-            }
-
             // 2. 自动选优 (带缓存) - 原 GetBestNetworkValue
             // A. 尝试运行时缓存
             if (_cachedNetHw != null)

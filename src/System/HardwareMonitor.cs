@@ -121,6 +121,9 @@ namespace LiteMonitor.src.SystemServices
                         // 2. 数据有了，再建立映射
                         // 此时 Rebuild 能读到刚才 Update 产生的数值，智能识别逻辑完美生效。
                         _sensorMap.Rebuild(_computer, cfg); 
+
+                        // ★★★ [新增] 3. 静态化预热：将所有传感器对象存入 Provider 缓存 ★★★
+                        _valueProvider.PreCacheAllSensors(_sensorMap);
                     }
                     
                     // ★★★ 优化 T1：启动后大扫除 ★★★
@@ -228,7 +231,7 @@ namespace LiteMonitor.src.SystemServices
                 if (isSlowScanTick) _lastSlowScan = now;
                 if (needDiskBgScan) _lastDiskBgScan = now;
 
-                _valueProvider.UpdateSystemCpuCounter();
+                _valueProvider.OnUpdateTickStarted();
 
                 if ((now - _lastTrafficSave).TotalSeconds > 60)
                 {
@@ -334,6 +337,7 @@ namespace LiteMonitor.src.SystemServices
                     DisableSensorHistory();
                 }
                 _sensorMap.Rebuild(_computer, _cfg); 
+                _valueProvider.PreCacheAllSensors(_sensorMap); // ★ 重新预热
                 
                 // 4. ★★★ 优化 T1：重置后再次修剪内存 ★★★
                 GC.Collect();

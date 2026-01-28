@@ -41,14 +41,16 @@ namespace LiteMonitor.src.SystemServices
         // ★★★ [新增] 配置引用 ★★★
         private Settings _cfg;
 
-        public void EnsureFresh(Computer computer, Settings cfg) // ★ 签名修改
+        public bool EnsureFresh(Computer computer, Settings cfg) // ★ 修改：返回 bool
         {
             // ★★★ [优化 2] 核心逻辑修改：如果 "超时" 或 "硬件数量变动(说明后台刚加载出新硬件)" 则重建 ★★★
             if ((DateTime.Now - _lastMapBuild).TotalMinutes > 10 || 
                 computer.Hardware.Count != _lastHardwareCount)
             {
                 Rebuild(computer, cfg);
+                return true;
             }
+            return false;
         }
 
         public void Clear()
@@ -68,6 +70,17 @@ namespace LiteMonitor.src.SystemServices
             lock (_lock)
             {
                 return _map.TryGetValue(key, out sensor);
+            }
+        }
+
+        /// <summary>
+        /// [新增] 获取内部映射的副本，用于 HardwareValueProvider 的静态化预热
+        /// </summary>
+        public Dictionary<string, ISensor> GetInternalMap()
+        {
+            lock (_lock)
+            {
+                return new Dictionary<string, ISensor>(_map);
             }
         }
 
