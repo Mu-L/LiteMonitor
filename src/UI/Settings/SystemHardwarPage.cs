@@ -51,11 +51,11 @@ namespace LiteMonitor.src.UI.SettingsPage
             {
                 string strAuto = LanguageManager.T("Menu.Auto");
 
-                // 1. 并行等待所有数据返回 (在 OnShow 时实时获取，确保硬件已初始化)
-                var taskDisks = Task.Run(() => HardwareMonitor.ListAllDisks());
-                var taskNets  = Task.Run(() => HardwareMonitor.ListAllNetworks());
-                var taskFans  = Task.Run(() => HardwareMonitor.ListAllFans());
-                var taskMobo  = Task.Run(() => HardwareMonitor.ListAllMoboTemps());
+                // 1. 并行等待所有数据返回 (使用 HardwareScanner)
+                var taskDisks = Task.Run(() => HardwareScanner.ListAllDisks(HardwareMonitor.Instance.ComputerInstance));
+                var taskNets  = Task.Run(() => HardwareScanner.ListAllNetworks(HardwareMonitor.Instance.ComputerInstance));
+                var taskFans  = Task.Run(() => HardwareScanner.ListAllFans(HardwareMonitor.Instance.ComputerInstance, HardwareMonitor.Instance.SyncLock));
+                var taskMobo  = Task.Run(() => HardwareScanner.ListAllMoboTemps(HardwareMonitor.Instance.ComputerInstance, HardwareMonitor.Instance.SyncLock));
 
                 await Task.WhenAll(taskDisks, taskNets, taskFans, taskMobo);
 

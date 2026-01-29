@@ -12,12 +12,6 @@ namespace LiteMonitor.src.SystemServices
 {
     public sealed class HardwareMonitor : IDisposable
     {
-        #region Native Methods
-        // ★★★ 新增：声明 Windows API 用于修剪工作集内存 ★★★
-        [DllImport("psapi.dll")]
-        private static extern int EmptyWorkingSet(IntPtr hwProc);
-        #endregion
-
         #region Singleton & Events
         public static HardwareMonitor? Instance { get; private set; }
         public event Action? OnValuesUpdated;
@@ -32,31 +26,26 @@ namespace LiteMonitor.src.SystemServices
         private readonly SensorMap _sensorMap;
         private readonly NetworkManager _networkManager;
         private readonly DiskManager _diskManager;
-        private readonly FpsCounter _fpsCounter; // <--- 新增
+        private readonly FpsCounter _fpsCounter;
         private readonly DriverInstaller _driverInstaller;
         private readonly HardwareValueProvider _valueProvider;
 
-        // ★★★ [新增] 性能计数器管理器 ★★★
+        // 性能计数器管理器
         private readonly PerformanceCounterManager _perfCounterManager;
 
         private readonly Dictionary<string, float> _lastValidMap = new();
         
-        // ★★★ 优化：增加 UI 列表缓存，防止重复分配字符串 ★★★
-        private List<string>? _cachedFanList = null; 
-        private List<string>? _cachedNetworkList = null; // 网卡列表缓存
-        private List<string>? _cachedDiskList = null;    // 硬盘列表缓存
-        private List<string>? _cachedMoboTempList = null; // 主板温度列表缓存
-
         // 计时器相关
-        private long _tickCounter = 0; // ★★★ 统一计时器计数 (约 1秒/tick) ★★★
-        private double _secondAccumulator = 0; // ★★★ [新增] 秒级累加器，解决非1秒刷新率问题 ★★★
-        private long _secondsCounter = 0;      // ★★★ [新增] 真实的秒计数器 (不受刷新率影响) ★★★
-        private DateTime _lastTrafficTime = DateTime.Now; // 仅用于网速计算 (需要高精度)
+        private long _tickCounter = 0;
+        private double _secondAccumulator = 0;
+        private long _secondsCounter = 0;
+        private DateTime _lastTrafficTime = DateTime.Now;
         #endregion
 
         #region Public Properties
         // [新增] 允许 UI 层访问原始硬件树（用于硬件信息面板）
         public IComputer ComputerInstance => _computer;
+        public object SyncLock => _lock;
         #endregion
 
         #region Constructor
@@ -217,56 +206,15 @@ namespace LiteMonitor.src.SystemServices
 
                 _valueProvider.OnUpdateTickStarted();
                 
-                // ★★★ 任务错峰执行 (Task Staggering) ★★★
-                PerformMaintenanceTasks();
+                // 任务错峰执行 (调用 SystemOptimizer)
+                SystemOptimizer.RunMaintenanceTasks(_secondsCounter);
                 
                 OnValuesUpdated?.Invoke();
             }
             catch { }
         }
 
-        public void CleanMemory(Action<int>? onProgress = null)
-        {
-            // 1. 自身 GC (0-5%)
-            onProgress?.Invoke(0);
-            GC.Collect(2, GCCollectionMode.Forced, true, true);
-            onProgress?.Invoke(5);
-
-            // 2. 全局清理 (5-100%)
-            try
-            {
-                var procs = System.Diagnostics.Process.GetProcesses();
-                int total = procs.Length;
-                int current = 0;
-
-                // 为了防止除以零
-                if (total == 0) { onProgress?.Invoke(100); return; }
-
-                foreach (var proc in procs)
-                {
-                    try
-                    {
-                        using (proc)
-                        {
-                            if (!proc.HasExited) EmptyWorkingSet(proc.Handle);
-                        }
-                    }
-                    catch 
-                    {
-                        // 忽略无权限访问的系统进程 (如 System, Registry 等)
-                    }
-                    finally
-                    {
-                        current++;
-                        // 映射进度到 5-100% 范围
-                        int p = 5 + (int)((double)current / total * 95);
-                        onProgress?.Invoke(Math.Min(p, 100));
-                    }
-                }
-            }
-            catch { }
-            onProgress?.Invoke(100);
-        }
+        public void CleanMemory(Action<int>? onProgress = null) => SystemOptimizer.CleanMemory(onProgress);
 
         public void Dispose()
         {
@@ -325,12 +273,9 @@ namespace LiteMonitor.src.SystemServices
                         _valueProvider.PreCacheAllSensors(_sensorMap);
                     }
 
-                    // ★★★ 优化 T1：启动后大扫除 ★★★
-                    // 1. 强制 GC：清理初始化过程中(如JSON解析、驱动检查)产生的临时垃圾
+                    // 优化 T1：启动后大扫除
                     GC.Collect(2, GCCollectionMode.Forced, true, true);
-                    
-                    // 2. 修剪物理内存：告诉系统"我很闲"，把不用的物理内存页交换出去
-                    try { EmptyWorkingSet(System.Diagnostics.Process.GetCurrentProcess().Handle); } catch { }
+                    SystemOptimizer.TrimWorkingSet();
                 }
                 catch (Exception ex)
                 {
@@ -418,29 +363,6 @@ namespace LiteMonitor.src.SystemServices
             return (forceAll, needCpu, needGpu, needMem, needNet, needDisk, needBat, needMobo, 0);
         }
 
-        private void PerformMaintenanceTasks()
-        {
-            // 此时使用的是 _secondsCounter (真实秒)，无论刷新率是多少，这里都是精确的 60秒 执行一次
-
-            // 1. 流量保存: 每 60 秒 (Offset 5s: 避开整点)
-            if (_secondsCounter % 60 == 5) TrafficLogger.Save();
-
-            // 2. 内存软清理: 每 180 秒 (Offset 30s: 避开流量保存)
-            if (_secondsCounter % 180 == 30) GC.Collect(2, GCCollectionMode.Optimized);
-
-            // 3. 内存硬清理: 每 300 秒 (5分钟) (Offset 45s)
-            if (_secondsCounter % 300 == 45)
-            {
-                try
-                {
-                    using var proc = System.Diagnostics.Process.GetCurrentProcess();
-                    // 阈值降低到 30MB，确保即使占用不高也能保持极致轻量
-                    if (proc.WorkingSet64 > 30 * 1024 * 1024) EmptyWorkingSet(proc.Handle);
-                }
-                catch { }
-            }
-        }
-
         private void ReloadComputerSafe()
         {
             try
@@ -452,34 +374,29 @@ namespace LiteMonitor.src.SystemServices
                     _diskManager.ClearCache();
                     _sensorMap.Clear();
                     
-                    // ★★★ 新增：清理 Provider 对象缓存，防止持有死对象 ★★★
                     _valueProvider.ClearCache();
                     
-                    // ★★★ 新增：清理 UI 列表缓存 ★★★
-                    _cachedFanList = null;
-                    _cachedNetworkList = null;
-                    _cachedDiskList = null;
-                    _cachedMoboTempList = null;
+                    // 清理扫描器缓存
+                    HardwareScanner.ClearCache();
 
-                    // 2. ★★★ 清理字符串池 (配合 UIUtils 的新功能) ★★★
+                    // 2. 清理字符串池
                     UIUtils.ClearStringPool();
 
-                    // 3. 关闭硬件服务 (使用 Visitor 模式触发 LHM 内部清理)
+                    // 3. 关闭硬件服务
                     _computer.Accept(new HardwareVisitor(h => { }));
                     _computer.Close();
                     
                     _computer.Open();
 
-                    // ★★★ 核心修复：重置后再次禁用历史记录 ★★★
                     DisableSensorHistory();
                 }
 
                 _sensorMap.Rebuild(_computer, _cfg);
-                _valueProvider.PreCacheAllSensors(_sensorMap); // ★ 重新预热
+                _valueProvider.PreCacheAllSensors(_sensorMap);
 
-                // 4. ★★★ 优化 T1：重置后再次修剪内存 ★★★
+                // 4. 优化 T1：重置后再次修剪内存
                 GC.Collect();
-                try { EmptyWorkingSet(System.Diagnostics.Process.GetCurrentProcess().Handle); } catch { }
+                SystemOptimizer.TrimWorkingSet();
             }
             catch { }
         }
@@ -516,144 +433,17 @@ namespace LiteMonitor.src.SystemServices
         }
         #endregion
 
-        #region Static UI Helpers
-        // ========================================================================
-        // ★★★ 新增：智能命名方法 (把 SuperIO 芯片名替换为主板名) ★★★
-        // ========================================================================
-        public static string GenerateSmartName(ISensor sensor, IHardware hardware)
-        {
-            string hwName = hardware.Name;
-            // 如果是 SuperIO (如 ITE IT8688E)，尝试偷梁换柱用主板名
-            if (hardware.HardwareType == HardwareType.SuperIO)
-            {
-                var mobo = Instance?._computer.Hardware.FirstOrDefault(h => h.HardwareType == HardwareType.Motherboard);
-                if (mobo != null) hwName = mobo.Name;
-            }
-            // 返回标准格式：Fan #1 [ASUS Z790-P]
-            return $"{sensor.Name} [{hwName}]";
-        }
+        #region Static UI Helpers (Delegated to HardwareScanner)
+        public static string GenerateSmartName(ISensor sensor, IHardware hardware) => 
+            HardwareScanner.GenerateSmartName(sensor, hardware, Instance!._computer);
 
-        // ★★★ 优化：使用缓存 + Intern，防止生成重复字符串 ★★★
-        public static List<string> ListAllNetworks()
-        {
-            if (Instance == null) return new List<string>();
-            // 修复：如果缓存有数据，返回副本 (.ToList()) 避免污染缓存
-            if (Instance._cachedNetworkList != null && Instance._cachedNetworkList.Count > 0)
-                return Instance._cachedNetworkList.ToList();
+        public static List<string> ListAllNetworks() => HardwareScanner.ListAllNetworks(Instance!._computer);
 
-            var list = Instance._computer.Hardware
-                .Where(h => h.HardwareType == HardwareType.Network)
-                .Select(h => h.Name).Distinct().ToList();
+        public static List<string> ListAllDisks() => HardwareScanner.ListAllDisks(Instance!._computer);
 
-            // 修复：只有搜到硬件才存入缓存，防止启动时的空列表被永久缓存
-            if (list.Count > 0) Instance._cachedNetworkList = list;
-            // ★★★ 修复：缓存生成 -> 必须返回副本！否则 UI 会污染缓存 ★★★
-            return list.ToList();
-        }
+        public static List<string> ListAllFans() => HardwareScanner.ListAllFans(Instance!._computer, Instance!._lock);
 
-        // ★★★ 优化：使用缓存 + Intern，防止生成重复字符串 ★★★
-        public static List<string> ListAllDisks()
-        {
-            if (Instance == null) return new List<string>();
-            // 修复：返回副本
-            if (Instance._cachedDiskList != null && Instance._cachedDiskList.Count > 0)
-                return Instance._cachedDiskList.ToList();
-
-            var list = Instance._computer.Hardware
-                .Where(h => h.HardwareType == HardwareType.Storage)
-                .Select(h => h.Name).Distinct().ToList();
-
-            if (list.Count > 0) Instance._cachedDiskList = list;
-            // ★★★ 修复：返回副本 ★★★
-            return list.ToList();
-        }
-
-        // 列出所有风扇 (黑名单机制：排除干扰项，允许 USB/Cooler)
-        public static List<string> ListAllFans()
-        {
-            if (Instance == null) return new List<string>();
-            // 修复：返回副本
-            if (Instance._cachedFanList != null && Instance._cachedFanList.Count > 0)
-                return Instance._cachedFanList.ToList();
-
-            var list = new List<string>();
-            lock (Instance._lock)
-            {
-                // 辅助递归函数
-                void Scan(IHardware hw)
-                {
-                    // 黑名单：与 SensorMap 保持一致
-                    // 坚决排除 显卡、CPU、硬盘、内存、网卡
-                    bool isExcluded = hw.HardwareType == HardwareType.GpuNvidia || hw.HardwareType == HardwareType.GpuAmd ||
-                                      hw.HardwareType == HardwareType.GpuIntel || hw.HardwareType == HardwareType.Cpu ||
-                                      hw.HardwareType == HardwareType.Storage || hw.HardwareType == HardwareType.Memory ||
-                                      hw.HardwareType == HardwareType.Network;
-
-                    // 只要不在黑名单里，都扫描！
-                    if (!isExcluded)
-                    {
-                        foreach (var s in hw.Sensors)
-                        {
-                            // 只列出 Fan 类型 (转速)
-                            // ★★★ 修复：调用统一的 SmartName 方法 ★★★
-                            if (s.SensorType == SensorType.Fan) list.Add(GenerateSmartName(s, hw));
-                        }
-                    }
-                    // 递归扫描子硬件
-                    foreach (var sub in hw.SubHardware) Scan(sub);
-                }
-                // 开始扫描根节点
-                foreach (var hw in Instance._computer.Hardware) Scan(hw);
-            }
-            // 排序并去重
-            list.Sort();
-            var final = list.Distinct().ToList();
-            // 存入缓存
-            if (final.Count > 0) Instance._cachedFanList = final;
-            
-            // ★★★ 核心修复点：必须返回 final.ToList() ★★★
-            // 之前这里直接返回 final，导致 UI 层插入 "Auto" 时直接修改了缓存对象，引发"多个自动"Bug
-            return final.ToList();
-        }
-
-        // 列出所有适合作为"主板/系统温度"的传感器
-        public static List<string> ListAllMoboTemps()
-        {
-            if (Instance == null) return new List<string>();
-            // 修复：返回副本
-            if (Instance._cachedMoboTempList != null && Instance._cachedMoboTempList.Count > 0)
-                return Instance._cachedMoboTempList.ToList();
-
-            var list = new List<string>();
-            lock (Instance._lock)
-            {
-                void Scan(IHardware hw)
-                {
-                    // 排除逻辑：只想要主板上的传感器，排除 CPU核心、显卡、硬盘、内存条、网卡
-                    bool isExcluded = hw.HardwareType == HardwareType.Cpu || hw.HardwareType == HardwareType.GpuNvidia ||
-                                      hw.HardwareType == HardwareType.GpuAmd || hw.HardwareType == HardwareType.GpuIntel ||
-                                      hw.HardwareType == HardwareType.Storage || hw.HardwareType == HardwareType.Memory ||
-                                      hw.HardwareType == HardwareType.Network;
-
-                    if (!isExcluded)
-                    {
-                        foreach (var s in hw.Sensors)
-                        {
-                            // ★★★ 修复：调用统一的 SmartName 方法 ★★★
-                            if (s.SensorType == SensorType.Temperature) list.Add(GenerateSmartName(s, hw));
-                        }
-                    }
-                    foreach (var sub in hw.SubHardware) Scan(sub);
-                }
-                foreach (var hw in Instance._computer.Hardware) Scan(hw);
-            }
-            list.Sort();
-            var final = list.Distinct().ToList();
-            if (final.Count > 0) Instance._cachedMoboTempList = final;
-            
-            // ★★★ 修复：返回副本 ★★★
-            return final.ToList();
-        }
+        public static List<string> ListAllMoboTemps() => HardwareScanner.ListAllMoboTemps(Instance!._computer, Instance!._lock);
         #endregion
 
         #region Inner Visitors
