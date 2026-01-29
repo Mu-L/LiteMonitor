@@ -265,7 +265,7 @@ namespace LiteMonitor
                 {
                     cfg.PanelWidth = w;
                     cfg.Save();
-                    AppActions.ApplyThemeAndLayout(cfg, ui, form);
+                    AppActions.ApplyThemeAndLayout(cfg, ui, form, retainData: true);
                 }
             };
 
@@ -299,7 +299,7 @@ namespace LiteMonitor
                 {
                     cfg.UIScale = scale;
                     cfg.Save();
-                    AppActions.ApplyThemeAndLayout(cfg, ui, form);
+                    AppActions.ApplyThemeAndLayout(cfg, ui, form, retainData: true);
                 }
             };
 

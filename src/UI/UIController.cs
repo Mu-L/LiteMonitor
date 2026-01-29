@@ -58,7 +58,7 @@ namespace LiteMonitor
             }
         }
 
-        public void ApplyTheme(string name)
+        public void ApplyTheme(string name, bool retainData = false)
         {
             // 1. 先保留旧主题的引用 (为了稍后释放)
             var oldTheme = ThemeManager.Current;
@@ -68,6 +68,8 @@ namespace LiteMonitor
             UIUtils.ClearBrushCache();
 
             // 3. 加载新主题 (Current 指向新对象，包含全新的字体)
+            // 如果主题名相同且要求保留数据，可以考虑跳过 Load，但为了应用 Scale 还是重新 Load 比较稳妥
+            // 或者优化：ThemeManager.Load 内部判断是否已加载
             ThemeManager.Load(name);
             var t = ThemeManager.Current;
 
@@ -97,8 +99,19 @@ namespace LiteMonitor
             _layout = new UILayout(t);
             _hxLayout = null;
 
-            BuildMetrics();
-            BuildHorizontalColumns();
+            if (!retainData)
+            {
+                BuildMetrics();
+                BuildHorizontalColumns();
+            }
+            else
+            {
+                // [Safety Check] Even if retaining data, ensure we have content.
+                // This handles cases where we switch modes but data wasn't built for that mode yet.
+                if (_groups.Count == 0) BuildMetrics();
+                if (_hxColsHorizontal.Count == 0) BuildHorizontalColumns();
+            }
+            
             _layoutDirty = true;
 
             _form.BackColor = ThemeManager.ParseColor(t.Color.Background);

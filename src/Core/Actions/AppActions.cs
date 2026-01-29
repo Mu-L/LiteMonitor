@@ -137,7 +137,7 @@ namespace LiteMonitor.src.Core.Actions
         // 4. 外观与布局 (主题、缩放、宽度、刷新率、显示模式)
         // =============================================================
 
-        public static void ApplyThemeAndLayout(Settings cfg, UIController? ui, MainForm form, bool? wasHorizontal = null)
+        public static void ApplyThemeAndLayout(Settings cfg, UIController? ui, MainForm form, bool? wasHorizontal = null, bool retainData = false)
         {
             // 1. 确定是否发生了模式切换
             // 如果外部没传 wasHorizontal，则尝试从 ui 获取当前渲染状态
@@ -151,7 +151,7 @@ namespace LiteMonitor.src.Core.Actions
             }
 
             // 2. 应用主题
-            ui?.ApplyTheme(cfg.Skin);
+            ui?.ApplyTheme(cfg.Skin, retainData);
             
             // 3. 强制立即刷新布局以获得正确的新尺寸 (关键：否则 form.Width 还是旧的)
             //ui?.RebuildLayout();
