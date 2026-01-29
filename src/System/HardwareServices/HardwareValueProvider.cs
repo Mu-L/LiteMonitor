@@ -393,7 +393,8 @@ namespace LiteMonitor.src.SystemServices
                             if (_manualSensorCache.TryGetValue(key, out var autoS) && autoS.Value.HasValue)
                                 result = autoS.Value.Value;
                         }
-                        if (result.HasValue) _cfg.UpdateMaxRecord(key, result.Value);
+                        if (result.HasValue && result.Value < 10000f) 
+                            _cfg.UpdateMaxRecord(key, result.Value);
                         break;
 
                     // [插入/修改逻辑] 主板温度 (全静态化缓存)
@@ -676,6 +677,9 @@ namespace LiteMonitor.src.SystemServices
             {
                 if (_manualSensorCache.TryGetValue("CPU.Power", out var s) && s.Value.HasValue) 
                 { 
+                    // ★★★ [新增] 熔断保护：过滤超过 600W 的 CPU 功耗异常值 ★★★
+                    // 解决系统抽风偶尔给出的 800W+ 脏数据
+                    if (s.Value.Value > 600.0f) return null;
                     _cfg.UpdateMaxRecord(key, s.Value.Value); 
                     return s.Value.Value; 
                 }
@@ -694,7 +698,7 @@ namespace LiteMonitor.src.SystemServices
                 else if (key == "GPU.Power")
                 {
                     var s = gpu.Sensors.FirstOrDefault(x => x.SensorType == SensorType.Power && (SensorMap.Has(x.Name, "package") || SensorMap.Has(x.Name, "ppt") || SensorMap.Has(x.Name, "board") || SensorMap.Has(x.Name, "core") || SensorMap.Has(x.Name, "gpu")));
-                    if (s != null && s.Value.HasValue) { float val = s.Value.Value; if (val > 2000.0f) return null; _cfg.UpdateMaxRecord(key, val); return val; }
+                    if (s != null && s.Value.HasValue) { float val = s.Value.Value; if (val > 1200.0f) return null; _cfg.UpdateMaxRecord(key, val); return val; }
                 }
             }
             return null;
