@@ -201,15 +201,32 @@ namespace LiteMonitor.src.SystemServices
             return null;
         }
 
+        public static ISensor? FindBestTempSensor(IHardware hw)
+        {
+            ISensor? best = null;
+            foreach (var s in hw.Sensors)
+            {
+                if (s.SensorType == SensorType.Temperature)
+                {
+                    // 排除干扰项
+                    if (s.Name.IndexOf("warning", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        s.Name.IndexOf("critical", StringComparison.OrdinalIgnoreCase) >= 0)
+                        continue;
+
+                    if (s.Name == "Temperature") return s;
+                    if (best == null) best = s;
+                }
+            }
+            return best;
+        }
+
         private float? ReadDiskSensor(IHardware hw, string key, Dictionary<string, float> lastValidMap, object syncLock)
         {
             // ★★★ [新增] 温度支持 ★★★
             if (key == "DISK.Temp")
             {
-                foreach (var s in hw.Sensors)
-                {
-                    if (s.SensorType == SensorType.Temperature) return SafeRead(s, key, lastValidMap, syncLock);
-                }
+                var best = FindBestTempSensor(hw);
+                if (best != null) return SafeRead(best, key, lastValidMap, syncLock);
                 return null;
             }
 

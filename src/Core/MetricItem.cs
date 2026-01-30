@@ -77,7 +77,7 @@ namespace LiteMonitor
         // 缓存字段
         // =============================
         private float _cachedDisplayValue = -99999f; 
-        private bool _cachedChargingState = false; // [Fix] 缓存充电状态，用于触发图标刷新
+        private (bool Ac, bool Charging) _cachedPowerState = (false, false); // [Fix] 缓存完整电源状态
         private string _cachedNormalText = "";       // 完整文本 (值+单位)
         private string _cachedHorizontalText = "";   // 完整横屏文本
         
@@ -147,14 +147,15 @@ namespace LiteMonitor
             }
 
             // 4. Numeric Value Processing (Hardware items)
-            // [Fix] 增加充电状态检查：如果数值变了 OR (是电池相关项 AND 充电状态变了) -> 强制刷新
+            // [Fix] 增加充电状态检查：如果数值变了 OR (是电池相关项 AND 电源状态变了) -> 强制刷新
             bool isBat = Key.StartsWith("BAT", StringComparison.OrdinalIgnoreCase);
-            bool chargingChanged = isBat && (_cachedChargingState != MetricUtils.IsBatteryCharging);
+            var currentPower = MetricUtils.GetPowerStatus();
+            bool powerChanged = isBat && (_cachedPowerState != currentPower);
 
-            if (Math.Abs(DisplayValue - _cachedDisplayValue) > 0.05f || chargingChanged)
+            if (Math.Abs(DisplayValue - _cachedDisplayValue) > 0.05f || powerChanged)
             {
                 _cachedDisplayValue = DisplayValue;
-                if (isBat) _cachedChargingState = MetricUtils.IsBatteryCharging;
+                if (isBat) _cachedPowerState = currentPower;
 
                 // [Refactor] 使用新的原子函数分别构建普通和紧凑文本
                 

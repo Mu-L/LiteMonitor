@@ -21,7 +21,6 @@ namespace LiteMonitor.src.SystemServices
         
         // 子服务与处理器
         private readonly PerformanceCounterManager _perfManager;
-        private readonly BatteryService _batteryService;
         private readonly ComponentProcessor _componentProcessor;
 
         // Tick 级智能缓存 (防止同帧重复计算)
@@ -51,7 +50,6 @@ namespace LiteMonitor.src.SystemServices
             _lastValidMap = lastValid;
 
             // 初始化子服务
-            _batteryService = new BatteryService(s);
             _componentProcessor = new ComponentProcessor(c, s, map);
         }
 
@@ -98,16 +96,11 @@ namespace LiteMonitor.src.SystemServices
                             if (SensorMap.Has(s.Name, "read")) newCache["DISK.Read"] = s;
                             else if (SensorMap.Has(s.Name, "write")) newCache["DISK.Write"] = s;
                         }
-                        else if (s.SensorType == SensorType.Temperature)
-                        {
-                            // ★★★ [Fix] 仅使用第一个温度传感器，避免被后续的 Controller Temp (通常偏高) 覆盖 ★★★
-                            // 保持与 DiskManager.ReadDiskSensor 逻辑一致
-                            if (!newCache.ContainsKey("DISK.Temp"))
-                            {
-                                newCache["DISK.Temp"] = s;
-                            }
-                        }
                     }
+                    
+                    // 独立处理温度筛选逻辑 (复用 DiskManager 算法)
+                    var bestTemp = DiskManager.FindBestTempSensor(disk);
+                    if (bestTemp != null) newCache["DISK.Temp"] = bestTemp;
                 }
             }
 
@@ -205,9 +198,6 @@ namespace LiteMonitor.src.SystemServices
                 {
                     PreCacheAllSensors(_sensorMap);
                 }
-
-                // 更新电源状态 (节流)
-                _batteryService.UpdatePowerStatus();
             }
         }
 
@@ -375,7 +365,7 @@ namespace LiteMonitor.src.SystemServices
                     case "BAT.Power":
                     case "BAT.Voltage":
                     case "BAT.Current":
-                        result = _batteryService.GetBatteryValue(key, _manualSensorCache);
+                        result = BatteryService.GetBatteryValue(key, _manualSensorCache);
                         break;
 
                     // 默认分支：处理模糊匹配 (StartsWith/Contains)

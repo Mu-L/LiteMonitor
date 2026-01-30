@@ -27,9 +27,33 @@ namespace LiteMonitor.src.Core
     public static class MetricUtils
     {
         // =========================================================
-        // 1. 全局状态
+        // 1. 全局状态 (自动缓存，3秒刷新)
         // =========================================================
-        public static bool IsBatteryCharging = false;
+        private static long _lastPowerCheck = 0;// 上次刷新电源功耗时间
+        private static bool _lastAc = false;// 是否接通电源
+        private static bool _lastCharging = false;// 是否正在充电 (排除充满/保护)
+
+        /// <summary>
+        /// 获取当前电源状态 (Unified)
+        /// AcOnline: 是否接通电源
+        /// IsCharging: 是否正在充电 (排除充满/保护)
+        /// </summary>
+        public static (bool AcOnline, bool IsCharging) GetPowerStatus()
+        {
+            long now = Environment.TickCount64;
+            if (now - _lastPowerCheck > 3000) // 3000ms 自动节流
+            {
+                _lastPowerCheck = now;
+                try
+                {
+                    var s = System.Windows.Forms.SystemInformation.PowerStatus;
+                    _lastAc = s.PowerLineStatus == System.Windows.Forms.PowerLineStatus.Online;
+                    _lastCharging = (s.BatteryChargeStatus & System.Windows.Forms.BatteryChargeStatus.Charging) == System.Windows.Forms.BatteryChargeStatus.Charging;
+                }
+                catch { }
+            }
+            return (_lastAc, _lastCharging);
+        }
         
         // [Optimization] Cache data size units
         private static readonly string[] _dataSizes = { "KB", "MB", "GB", "TB", "PB" };
@@ -192,7 +216,7 @@ namespace LiteMonitor.src.Core
             // 3. 电池充电后缀
             string suffix = (
                 key.StartsWith("BAT", StringComparison.OrdinalIgnoreCase) 
-                && IsBatteryCharging 
+                && GetPowerStatus().AcOnline 
                 && context != UnitContext.SettingsPanel 
                 && context != UnitContext.SettingsTaskbar) ? "⚡" : "";
 

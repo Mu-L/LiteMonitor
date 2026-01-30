@@ -483,10 +483,10 @@ namespace LiteMonitor
                 }
             }
 
-            Check("CPU.Temp", _mon.Get("CPU.Temp"), globalThreshold, "CPU");
-            Check("GPU.Temp", _mon.Get("GPU.Temp"), globalThreshold, "GPU");
-            Check("MOBO.Temp", _mon.Get("MOBO.Temp"), globalThreshold, "MOBO");
-            Check("DISK.Temp", _mon.Get("DISK.Temp"), diskThreshold, "DISK", $" (>{diskThreshold}°C)");
+            Check("CPU.Temp", _mon.Get("CPU.Temp"), globalThreshold, LanguageManager.T("Short.CPU.Temp"));
+            Check("GPU.Temp", _mon.Get("GPU.Temp"), globalThreshold, LanguageManager.T("Short.GPU.Temp"));
+            Check("MOBO.Temp", _mon.Get("MOBO.Temp"), globalThreshold, LanguageManager.T("Short.MOBO.Temp"));
+            Check("DISK.Temp", _mon.Get("DISK.Temp"), diskThreshold, LanguageManager.T("Short.DISK.Temp"), $" (>{diskThreshold}°C)");
 
             if (alertLines.Count > 0)
             {
