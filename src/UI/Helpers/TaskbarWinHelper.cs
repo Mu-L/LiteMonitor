@@ -19,8 +19,11 @@ namespace LiteMonitor.src.UI.Helpers
 
         // ★★★ 性能优化缓存 ★★★
         private Rectangle _lastWindowRect = Rectangle.Empty;
-        private Rectangle _cachedDwmRect = Rectangle.Empty;
+        private Rectangle _cachedResult = Rectangle.Empty;
         private bool _isCacheValid = false;
+
+        // [Optimization] 静态缓存系统版本检测结果，供全局复用，避免重复调用系统 API
+        private static readonly bool _isWin11 = Environment.OSVersion.Version.Major == 10 && Environment.OSVersion.Version.Build >= 22000;
 
         public TaskbarWinHelper(Form form)
         {
@@ -145,120 +148,72 @@ namespace LiteMonitor.src.UI.Helpers
 
         public Rectangle GetTaskbarRect(IntPtr hTaskbar, string targetDevice)
         {
-            // 优先使用 GetWindowRect 获取真实窗口大小
-            // 修复 #213: Surface 等二合一设备在键盘连接/断开切换时，SHAppBarMessage 可能返回错误的缓存高度，导致显示异常
-            if (hTaskbar != IntPtr.Zero && GetWindowRect(hTaskbar, out RECT r))
+            if (hTaskbar == IntPtr.Zero) return Rectangle.Empty;
+
+            // 1. 获取物理矩形
+            if (!GetWindowRect(hTaskbar, out RECT r)) return Rectangle.Empty;
+            var rectPhys = Rectangle.FromLTRB(r.left, r.top, r.right, r.bottom);
+
+            // 缓存检查
+            if (_isCacheValid && rectPhys == _lastWindowRect) return _cachedResult;
+
+            Rectangle finalRect = rectPhys;
+
+            // =========================================================================
+            // [SIMPLIFIED FIX] 极简稳定方案：基于 WorkingArea 和 强制高度修正 (DPI适配版)
+            // =========================================================================
+            try
             {
-                var rectW = Rectangle.FromLTRB(r.left, r.top, r.right, r.bottom);
+                Screen screen = null;
+                if (!string.IsNullOrEmpty(targetDevice)) 
+                    screen = Screen.AllScreens.FirstOrDefault(s => s.DeviceName == targetDevice);
+                if (screen == null) 
+                    screen = Screen.FromHandle(hTaskbar);
 
-                // ★★★ 性能优化：缓存机制 ★★★
-                // 只有当物理窗口大小/位置发生变化，或者缓存无效时，才去查询 DWM
-                if (_isCacheValid && rectW == _lastWindowRect)
+                if (screen != null)
                 {
-                    return _cachedDwmRect;
-                }
+                    Rectangle workArea = screen.WorkingArea;
+                    Rectangle screenBounds = screen.Bounds;
+                    int reservedBottom = screenBounds.Bottom - workArea.Bottom;
 
-                _lastWindowRect = rectW;
-                _cachedDwmRect = rectW; // 默认回退值
-                _isCacheValid = true;
-
-                // 修复 #231: 多显示器/DPI切换后，GetWindowRect 可能返回包含透明区域的虚高尺寸
-                // 尝试使用 DWM 获取实际视觉边界 (Extended Frame Bounds)
-                try
-                {
-                    if (DwmGetWindowAttribute(hTaskbar, DWMWA_EXTENDED_FRAME_BOUNDS, out RECT dwmRect, Marshal.SizeOf(typeof(RECT))) == 0)
+                    // 场景 A: 锚定模式 (Win10/11 正常桌面固定)
+                    // 如果 WorkingArea 被挤压 (>2px)，直接信赖 WorkingArea。
+                    if (reservedBottom > 2) 
                     {
-                        var rectD = Rectangle.FromLTRB(dwmRect.left, dwmRect.top, dwmRect.right, dwmRect.bottom);
-
-                        // 如果 DWM 返回的高度有效且更小 (说明 WindowRect 包含了虚空区域)
-                        // 且高度差异超过 2px (忽略微小误差)，优先使用 DWM 的视觉边界
-                        if (rectD.Height > 0 && rectD.Height < rectW.Height && (rectW.Height - rectD.Height > 2))
-                        {
-                            _cachedDwmRect = rectD;
-                        }
+                        finalRect = new Rectangle(rectPhys.Left, workArea.Bottom, rectPhys.Width, reservedBottom);
                     }
-                }
-                catch { /* Ignore DWM errors */ }
-
-                // =========================================================================
-                // [NEW FIX] 针对二合一设备/Windows 11 平板模式的强力修正
-                // 原因：在二合一设备上，WindowRect 和 DWM 都可能包含不可见的手势触控区域（幽灵高度）。
-                // 方案：Screen.WorkingArea 是由 Explorer 维护的实际可用区域，以此为基准修正 Top。
-                // =========================================================================
-                try
-                {
-                    Screen screen = null;
-                    if (!string.IsNullOrEmpty(targetDevice))
-                        screen = Screen.AllScreens.FirstOrDefault(s => s.DeviceName == targetDevice);
-                    
-                    // 如果没找到或未指定，使用句柄所在的屏幕
-                    if (screen == null)
-                        screen = Screen.FromHandle(hTaskbar);
-
-                    if (screen != null)
+                    // 场景 B: 悬浮模式 (自动隐藏 / 平板模式)
+                    else
                     {
-                        // 1. 获取屏幕工作区 (不包含任务栏的区域)
-                        Rectangle workArea = screen.WorkingArea;
-                        Rectangle screenBounds = screen.Bounds;
-
-                        // 2. 仅当任务栏位于底部时执行此修正 (Win11 绝大多数情况)
-                        bool isBottomDocked = _cachedDwmRect.Top >= (screenBounds.Top + screenBounds.Height / 2);
-
-                        if (isBottomDocked)
+                        // 针对 Win11 的强制修正 (复用静态 _isWin11 字段)
+                        if (_isWin11)
                         {
-                            // 3. 核心判断：如果任务栏声称的顶部 (Top) 明显高于 工作区底部 (Bottom)
-                            // 说明任务栏汇报了一个包含了"不可见区域"的高度
-                            // 容差 2px 防止 DPI 缩放导致的舍入误差
-                            if (_cachedDwmRect.Top < workArea.Bottom - 2)
+                            // 计算当前 DPI 下的标准任务栏高度 (Win11 标准为 48px @ 96DPI)
+                            int dpi = GetTaskbarDpi();
+                            int standardHeight = (int)Math.Round(48.0 * dpi / 96.0);
+
+                            // 判定是否处于"弹出/展开"状态
+                            // 如果物理高度 > 标准高度的 80%，说明它不是收起状态(收起状态通常很窄)
+                            // 此时由于 API 可能返回幽灵高度(60px+)，我们需要强制将其修正为标准高度
+                            if (rectPhys.Height > (standardHeight * 0.8))
                             {
-                                int visualHeight = screenBounds.Bottom - workArea.Bottom;
-                                
-                                // 确保计算出的高度是合理的 (例如 >= 0 且不占满全屏)
-                                // 如果 visualHeight 为 0，通常意味着任务栏自动隐藏了，此时无需修正或保持原样即可
-                                if (visualHeight >= 0 && visualHeight < screenBounds.Height / 2)
-                                {
-                                    // 强制修正 Top 和 Height
-                                    _cachedDwmRect = new Rectangle(
-                                        _cachedDwmRect.Left, 
-                                        workArea.Bottom, 
-                                        _cachedDwmRect.Width, 
-                                        visualHeight);
-                                }
+                                finalRect = new Rectangle(
+                                    rectPhys.Left, 
+                                    rectPhys.Bottom - standardHeight, // 紧贴物理底边
+                                    rectPhys.Width, 
+                                    standardHeight);
                             }
                         }
                     }
                 }
-                catch { /* 兜底：如果修正逻辑出错，保持原 DWM 或 RectW 结果 */ }
-
-                return _cachedDwmRect;
             }
+            catch { }
 
-            // Fallback (通常不会走到这里，除非句柄无效)
-            bool isPrimary = (hTaskbar == FindWindow("Shell_TrayWnd", null));
+            _lastWindowRect = rectPhys;
+            _cachedResult = finalRect;
+            _isCacheValid = true;
 
-            if (isPrimary)
-            {
-                APPBARDATA abd = new APPBARDATA();
-                abd.cbSize = Marshal.SizeOf(abd);
-                uint res = SHAppBarMessage(ABM_GETTASKBARPOS, ref abd);
-                if (res != 0)
-                {
-                    return Rectangle.FromLTRB(abd.rc.left, abd.rc.top, abd.rc.right, abd.rc.bottom);
-                }
-                else
-                {
-                    var s = Screen.PrimaryScreen;
-                    if (s != null)
-                        return new Rectangle(s.Bounds.Left, s.Bounds.Bottom - 40, s.Bounds.Width, 40);
-                }
-            }
-            else
-            {
-                // 副屏兜底
-                Screen target = Screen.AllScreens.FirstOrDefault(s => s.DeviceName == targetDevice) ?? Screen.PrimaryScreen;
-                return new Rectangle(target.Bounds.Left, target.Bounds.Bottom - 40, target.Bounds.Width, 40);
-            }
-            return Rectangle.Empty;
+            return _cachedResult;
         }
 
         public bool GetWindowRectWrapper(IntPtr hWnd, out Rectangle rect)
@@ -297,7 +252,8 @@ namespace LiteMonitor.src.UI.Helpers
         public static int GetWidgetsWidth()
         {
             int dpi = GetTaskbarDpi();
-            if (Environment.OSVersion.Version >= new Version(10, 0, 22000))
+            // [Optimization] 复用静态缓存的 Win11 判断
+            if (_isWin11)
             {
                 string local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
                 string pkg = Path.Combine(local, "Packages");
