@@ -5,6 +5,8 @@ using LiteMonitor.src.UI;
 using LiteMonitor.src.SystemServices;
 using LiteMonitor.src.WebServer; // ★★★ 引用 WebServer 命名空间 ★★★
 using LiteMonitor.src.Plugins;
+using System.Linq;
+using System.Collections.Generic;
 
 namespace LiteMonitor.src.Core.Actions
 {
@@ -248,9 +250,11 @@ namespace LiteMonitor.src.Core.Actions
         // --- 内部辅助 ---
         private static void ReloadTaskbarWindows()
         {
-            foreach (Form f in Application.OpenForms)
+            // [Fix] 使用 ToList() 创建副本，防止 ReloadLayout -> TooltipHelper -> Dispose 修改 OpenForms 集合导致枚举异常
+            var targets = Application.OpenForms.OfType<TaskbarForm>().ToList();
+            foreach (var tf in targets)
             {
-                if (f is TaskbarForm tf) tf.ReloadLayout();
+                tf.ReloadLayout();
             }
         }
     }

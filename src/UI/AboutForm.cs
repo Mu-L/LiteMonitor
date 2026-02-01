@@ -43,11 +43,11 @@ namespace LiteMonitor
             // === 标题 ===
             var lblTitle = new Label
             {
-                Text = "⚡️ LiteMonitor",
+                Text = "⚡️LiteMonitor",
                 Font = new Font(theme.Font.Family, 14, FontStyle.Bold),
                 ForeColor = ThemeManager.ParseColor(theme.Color.TextTitle),
                 AutoSize = true,
-                Location = new Point(UIUtils.S(30), UIUtils.S(28))
+                Location = new Point(UIUtils.S(22), UIUtils.S(28))
             };
 
             // === 简洁版本号 ===
@@ -125,12 +125,12 @@ namespace LiteMonitor
                 // ✅ 与左侧文字(x=32)对齐
                 Location = new Point(UIUtils.S(32), UIUtils.S(235)),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = ThemeManager.ParseColor(theme.Color.BarBackground),
+                BackColor = ThemeManager.ParseColor(theme.Color.GroupBackground),
                 ForeColor = ThemeManager.ParseColor(theme.Color.TextPrimary),
                 Font = new Font(theme.Font.Family, 9.5f, FontStyle.Regular)
             };
             btnBug.FlatAppearance.BorderSize = 0;
-            btnBug.FlatAppearance.MouseOverBackColor = ThemeManager.ParseColor(theme.Color.Background);
+            btnBug.FlatAppearance.MouseOverBackColor = ThemeManager.ParseColor(theme.Color.BarBackground);
             btnBug.Click += (_, __) => 
             {
                 try
@@ -150,12 +150,12 @@ namespace LiteMonitor
                 // 稍微往右移一点，给 Bug 按钮腾出空间 (原 150 保持不变，刚好合适)
                 Location = new Point(UIUtils.S(150), UIUtils.S(235)),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = ThemeManager.ParseColor(theme.Color.BarBackground),
+                BackColor = ThemeManager.ParseColor(theme.Color.GroupBackground),
                 ForeColor = ThemeManager.ParseColor(theme.Color.TextPrimary),
                 Font = new Font(theme.Font.Family, 9.5f, FontStyle.Regular)
             };
             btnCheckUpdate.FlatAppearance.BorderSize = 0;
-            btnCheckUpdate.FlatAppearance.MouseOverBackColor = ThemeManager.ParseColor(theme.Color.Background);
+            btnCheckUpdate.FlatAppearance.MouseOverBackColor = ThemeManager.ParseColor(theme.Color.BarBackground);
             btnCheckUpdate.Click += async (_, __) => await UpdateChecker.CheckAsync(showMessage: true);
 
             // === 关闭按钮（扁平风格） ===
@@ -167,12 +167,12 @@ namespace LiteMonitor
                 Size = UIUtils.S(new Size(70, 30)),
                 Location = new Point(UIUtils.S(270), UIUtils.S(235)),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = ThemeManager.ParseColor(theme.Color.BarBackground),
+                BackColor = ThemeManager.ParseColor(theme.Color.GroupBackground),
                 ForeColor = ThemeManager.ParseColor(theme.Color.TextPrimary),
                 Font = new Font(theme.Font.Family, 9.5f, FontStyle.Regular)
             };
             btnClose.FlatAppearance.BorderSize = 0;           // ✅ 移除白边框
-            btnClose.FlatAppearance.MouseOverBackColor = ThemeManager.ParseColor(theme.Color.Background);
+            btnClose.FlatAppearance.MouseOverBackColor = ThemeManager.ParseColor(theme.Color.BarBackground);
 
             // 别忘了把新按钮 btnBug 加入集合
             Controls.AddRange([lblTitle, lblVer, lblDesc, websiteLink, githubLink, btnBug, btnCheckUpdate, btnClose]);
