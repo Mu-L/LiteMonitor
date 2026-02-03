@@ -78,7 +78,7 @@ namespace LiteMonitor.src.SystemServices
                 // 1. 根据硬件规则判断是否应该优先找共享内存 (核显)
                 bool preferShared = HardwareRules.ShouldUseSharedMemory(hw);
 
-                if (s.SensorType == SensorType.SmallData && (Has(name, "memory") || Has(name, "dedicated")))
+                if (s.SensorType == SensorType.SmallData && (Has(name, "memory") || Has(name, "dedicated") || Has(name, "shared")))
                 {
                     bool isShared = Has(name, "shared");
                     bool isDedicated = Has(name, "dedicated");
@@ -90,6 +90,10 @@ namespace LiteMonitor.src.SystemServices
                         // Integrated: Only accept Shared Memory
                         if (isShared && Has(name, "used")) return "GPU.VRAM.Used";
                         if (isShared && Has(name, "total")) return "GPU.VRAM.Total";
+                        
+                        // Fallback: 如果没有 Shared Memory (比如某些老驱动)，但有 Generic Memory，勉强用一下
+                        // 但必须排除 Dedicated (核显通常没有专用显存，如果有也是假的或者极小)
+                        if (isGenericMem && Has(name, "used")) return "GPU.VRAM.Used";
                     }
                     else
                     {
@@ -109,8 +113,6 @@ namespace LiteMonitor.src.SystemServices
             if (type == HardwareType.Memory) 
             {
                 // [Critical Fix] 严格排除虚拟内存 (Virtual Memory)
-                // LibreHardwareMonitor 会同时列出 "Generic Memory" 和 "Virtual Memory"
-                // 必须通过 Hardware 名称进行过滤，否则可能错误地映射到虚拟内存的 Load 传感器
                 if (Has(hw.Name, "virtual")) return null;
                 
                 // 1. 负载
@@ -126,7 +128,8 @@ namespace LiteMonitor.src.SystemServices
                 if (s.SensorType == SensorType.Data || s.SensorType == SensorType.SmallData)
                 {
                     if (Has(name, "used")) return "MEM.Used";
-                    if (Has(name, "available")) return "MEM.Available";
+                    // [Fix] 恢复对 Free 的支持，防止部分系统 Available 传感器缺失或命名为 Free
+                    if (Has(name, "available") || Has(name, "free")) return "MEM.Available";
                 }
             }
 
