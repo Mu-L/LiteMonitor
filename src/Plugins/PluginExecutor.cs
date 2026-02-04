@@ -33,8 +33,6 @@ namespace LiteMonitor.src.Plugins
             public DateTime Timestamp { get; set; }
         }
         
-        // [Optimization] Limit cache size? Currently simple ConcurrentDictionary.
-        // We will add a simple cleanup if count > 100 in ClearCache or periodic check.
         private readonly ConcurrentDictionary<string, CacheItem> _stepCache = new();
 
         public event Action OnSchemaChanged;
@@ -50,10 +48,6 @@ namespace LiteMonitor.src.Plugins
         {
             lock (_httpLock)
             {
-                // [Optimized] Do NOT dispose the old client immediately to avoid ObjectDisposedException 
-                // in concurrent requests. Let GC handle the old instance.
-                // _http?.Dispose(); 
-                
                 _http = new HttpClient(new SocketsHttpHandler
                 {
                     // 关键修复：允许 HttpClient 自动识别并解压 GZip 或 Deflate 数据
@@ -63,24 +57,54 @@ namespace LiteMonitor.src.Plugins
                     {
                         RemoteCertificateValidationCallback = (sender, cert, chain, sslPolicyErrors) => true
                     },
-                    PooledConnectionLifetime = TimeSpan.FromMinutes(5)
+                    // [Fix] Reduce pooled connection lifetime to ensure timely DNS updates and socket release
+                    PooledConnectionLifetime = TimeSpan.FromMinutes(2),
+                    // [Fix] Limit connections per server to prevent ephemeral port exhaustion
+                    MaxConnectionsPerServer = 20
                 });
                 _http.Timeout = TimeSpan.FromSeconds(10); 
                 _http.DefaultRequestHeaders.Add("User-Agent", "LiteMonitor/1.0");
             }
         }
 
+        private DateTime _lastNetworkReset = DateTime.MinValue;
+
         public void ResetNetworkClients()
         {
-            InitializeDefaultClient();
+            lock (_httpLock)
+            {
+                // [Fix] Throttle resets to prevent resource exhaustion (e.g. during system sleep/wake cycle)
+                if ((DateTime.Now - _lastNetworkReset).TotalSeconds < 60) return;
+                _lastNetworkReset = DateTime.Now;
+
+                // [Fix] Properly dispose old clients to release sockets
+                var oldHttp = _http;
+                var oldProxies = new List<HttpClient>(_proxyClients.Values);
+
+                InitializeDefaultClient();
+                
+                // [Optimized] Clear proxy clients dictionary but do NOT dispose them.
+                // Other threads might be using them. Removing them from the dictionary ensures
+                // new requests get fresh clients, while old requests can finish (or fail safely).
+                _proxyClients.Clear();
+                
+                // [Fix] Also reset native resolvers that might hold network state or cache
+                CityCodeResolver.ResetClient();
+
+                // [Fix] Delay dispose old clients to allow inflight requests to complete (or timeout)
+                // This prevents ObjectDisposedException while ensuring Sockets are eventually released
+                Task.Run(async () => 
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(30));
+                    try 
+                    {
+                        oldHttp?.Dispose();
+                        foreach(var c in oldProxies) c.Dispose();
+                    }
+                    catch {}
+                });
+            }
             
-            // [Optimized] Clear proxy clients dictionary but do NOT dispose them.
-            // Other threads might be using them. Removing them from the dictionary ensures
-            // new requests get fresh clients, while old requests can finish (or fail safely).
-            _proxyClients.Clear();
-            
-            // [Fix] Also reset native resolvers that might hold network state or cache
-            CityCodeResolver.ResetClient();
         }
 
         public void Dispose()
@@ -99,9 +123,6 @@ namespace LiteMonitor.src.Plugins
             if (string.IsNullOrEmpty(instanceId))
             {
                 _stepCache.Clear();
-                
-                // Also clear proxy clients? No, they are expensive to recreate.
-                // But maybe remove unused ones? For now, keep them.
             }
             else
             {
@@ -409,7 +430,7 @@ namespace LiteMonitor.src.Plugins
                 lock (_httpLock) return _http;
             }
 
-            return _proxyClients.GetOrAdd(proxy, p => 
+            return _proxyClients.GetOrAdd(proxy.Trim(), p => 
             {
                 var handler = new SocketsHttpHandler();
                 handler.Proxy = new System.Net.WebProxy(p);
@@ -420,6 +441,9 @@ namespace LiteMonitor.src.Plugins
                 {
                     RemoteCertificateValidationCallback = (sender, cert, chain, sslPolicyErrors) => true
                 };
+                // [Fix] Limit pooled connections for proxies too
+                handler.PooledConnectionLifetime = TimeSpan.FromMinutes(2);
+                handler.MaxConnectionsPerServer = 20;
                 
                 var client = new HttpClient(handler);
                 client.Timeout = TimeSpan.FromSeconds(10);
@@ -650,15 +674,8 @@ namespace LiteMonitor.src.Plugins
 
         private void HandleExecutionError(PluginInstanceConfig inst, PluginTemplate tmpl, Dictionary<string, string> inputs, string keySuffix, Exception ex)
         {
-            // [Fix] If default client encounters network error, force recreate it to pick up potential system proxy changes
-            // Also reset proxy clients as they might be stale or stuck in bad state
-            if (ex is HttpRequestException || ex is TaskCanceledException || ex is OperationCanceledException)
-            {
-                 // Only reset if this instance is NOT using a specific proxy (i.e. using default client)
-                 // We don't have easy access to the exact step config here easily, but checking if ANY step uses proxy is hard.
-                 // Heuristic: Just recreate default client. It's cheap enough (once per 5s on error).
-                 ResetNetworkClients();
-            }
+            // [Fix] Removed aggressive ResetNetworkClients() on single error.
+            // Let PluginManager handle network resets based on consecutive failures to avoid client storm.
 
             // [Improvement] Even on error, try to resolve labels if possible (so user knows which item failed)
             if (tmpl.Outputs != null)
