@@ -258,16 +258,23 @@ namespace LiteMonitor.src.UI.Helpers
                     {
                         if (_isWin11)
                         {
-                            int dpi = GetTaskbarDpi();
-                            int standardHeight = (int)Math.Round(48.0 * dpi / 96.0);
+                            // [Fix] 增加对垂直任务栏的判断，防止误判
+                            // StartAllBack 等软件可能启用垂直任务栏，此时不应应用底部水平任务栏的高度修正
+                            bool isVertical = rectPhys.Height > rectPhys.Width;
 
-                            if (rectPhys.Height > (standardHeight * 0.8))
+                            if (!isVertical)
                             {
-                                finalRect = new Rectangle(
-                                    rectPhys.Left, 
-                                    rectPhys.Bottom - standardHeight, 
-                                    rectPhys.Width, 
-                                    standardHeight);
+                                int dpi = GetTaskbarDpi();
+                                int standardHeight = (int)Math.Round(48.0 * dpi / 96.0);
+
+                                if (rectPhys.Height > (standardHeight * 0.8))
+                                {
+                                    finalRect = new Rectangle(
+                                        rectPhys.Left, 
+                                        rectPhys.Bottom - standardHeight, 
+                                        rectPhys.Width, 
+                                        standardHeight);
+                                }
                             }
                         }
                     }
