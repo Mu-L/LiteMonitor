@@ -69,12 +69,12 @@ namespace LiteMonitor.src.UI
             this.Size = new Size(UIUtils.S(820), UIUtils.S(680));
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
-            this.MinimizeBox = false;
+            this.MinimizeBox = true;
             this.StartPosition = FormStartPosition.CenterScreen;
             this.Text = LanguageManager.T("Menu.SettingsPanel");
             this.Font = new Font("Microsoft YaHei UI", 9F);
             this.BackColor = UIColors.MainBg;
-            this.ShowInTaskbar = false;
+            this.ShowInTaskbar = true;
 
             // 侧边栏
             var pnlSidebar = new Panel { Dock = DockStyle.Left, Width = UIUtils.S(160), BackColor = UIColors.SidebarBg };

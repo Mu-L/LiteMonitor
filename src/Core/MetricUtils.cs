@@ -201,7 +201,11 @@ namespace LiteMonitor.src.Core
                 // Settings 模式下，返回 {u} 占位符，提示用户这是动态单位
                 // 仅 SettingsPanel 和 SettingsTaskbar 返回占位符
                 if (context == UnitContext.SettingsPanel || context == UnitContext.SettingsTaskbar)
-                    return type == MetricType.DataSpeed ? "{u}/s" : "{u}";
+                {
+                    if (type == MetricType.DataSpeed)
+                        return context == UnitContext.SettingsTaskbar ? "{u}" : "{u}/s";
+                    return "{u}";
+                }
 
                 // 需要根据数值重新计算单位 (FormatDataSizeParts 开销很小)
                 // UnitContext.Taskbar 对应紧凑模式 -> 整数 (0)

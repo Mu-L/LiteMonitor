@@ -168,30 +168,41 @@ namespace LiteMonitor
 
                 // [Refactor] 使用新的原子函数分别构建普通和紧凑文本
                 
-                // 1. 标准模式 (Panel)
+                // === 1. 更新主界面缓存 (Panel) ===
                 string valNormal = MetricUtils.GetValueStr(Key, DisplayValue, false);
                 string unitNormal = MetricUtils.GetUnitStr(Key, DisplayValue, MetricUtils.UnitContext.Panel);
+                string userFmtPanel = cfg?.UnitPanel;
                 
-                CachedValueText = valNormal;
-                CachedUnitText = MetricUtils.GetDisplayUnit(Key, unitNormal, userFormat);
-                _cachedNormalText = CachedValueText + CachedUnitText;
+                string finalUnitPanel = MetricUtils.GetDisplayUnit(Key, unitNormal, userFmtPanel);
+                _cachedNormalText = valNormal + finalUnitPanel;
 
-                // 2. 紧凑模式 (Taskbar/Horizontal)
-                if (HasCustomUnit)
+                // === 2. 更新任务栏缓存 (Taskbar/Horizontal) ===
+                // 逻辑修正：任务栏模式下，必须使用 Taskbar 上下文 (例如不带 /s)
+                string userFmtTaskbar = cfg?.UnitTaskbar;
+                bool hasCustomTaskbar = !string.IsNullOrEmpty(userFmtTaskbar);
+                
+                // 自动模式：启用数值压缩 (Compact=true) 和 紧凑单位 (Taskbar Context)
+                // 自定义模式：不做数值压缩 (false)，但单位仍需基于 Taskbar 上下文计算基础值
+                bool compact = !hasCustomTaskbar;
+                
+                string valTaskbar = MetricUtils.GetValueStr(Key, DisplayValue, compact);
+                string unitTaskbar = MetricUtils.GetUnitStr(Key, DisplayValue, MetricUtils.UnitContext.Taskbar);
+                
+                string finalUnitTaskbar = MetricUtils.GetDisplayUnit(Key, unitTaskbar, userFmtTaskbar);
+                _cachedHorizontalText = valTaskbar + finalUnitTaskbar;
+
+                // 更新公共属性以便调试 (显示当前请求模式的值)
+                if (isHorizontal)
                 {
-                    // 自定义单位模式下，不做数值压缩，保持与 Panel 一致
-                    _cachedHorizontalText = _cachedNormalText;
+                    CachedValueText = valTaskbar;
+                    CachedUnitText = finalUnitTaskbar;
+                    HasCustomUnit = hasCustomTaskbar;
                 }
                 else
                 {
-                    // 自动模式：启用数值压缩 (Compact=true) 和 紧凑单位 (Taskbar Context)
-                    string valCompact = MetricUtils.GetValueStr(Key, DisplayValue, true);
-                    string unitCompact = MetricUtils.GetUnitStr(Key, DisplayValue, MetricUtils.UnitContext.Taskbar);
-                    
-                    // 确保单位正确注入 (虽然 Auto 模式下 GetDisplayUnit 通常直接返回 unitCompact)
-                    string finalUnitCompact = MetricUtils.GetDisplayUnit(Key, unitCompact, null);
-                    
-                    _cachedHorizontalText = valCompact + finalUnitCompact;
+                    CachedValueText = valNormal;
+                    CachedUnitText = finalUnitPanel;
+                    HasCustomUnit = !string.IsNullOrEmpty(userFmtPanel);
                 }
 
                 // Only calculate color if NOT a plugin item (already handled above)

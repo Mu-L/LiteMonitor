@@ -241,7 +241,8 @@ namespace LiteMonitor.ThemeEditor
                 {
                     Text = label,
                     Location = new Point((int)(10 * dpiScale), y + (int)(4 * dpiScale)),
-                    Width = (int)(240 * dpiScale)
+                    Width = (int)(240 * dpiScale),
+                    Height = (int)(25 * dpiScale) // Fix DPI clipping
                 });
 
                 var n = new NumericUpDown
@@ -267,6 +268,7 @@ namespace LiteMonitor.ThemeEditor
                 Text = "说明：窗体圆角设置暂不支持预览 且仅win10下修改圆角有效",
                 Location = new Point((int)(10 * dpiScale), y),
                 Width = (int)(350 * dpiScale),
+                Height = (int)(20 * dpiScale), // Fix DPI clipping
                 ForeColor = Color.Gray,
                 Font = new Font("Microsoft YaHei UI", 8f)
             });
@@ -305,7 +307,8 @@ namespace LiteMonitor.ThemeEditor
                 {
                     Text = label,
                     Location = new Point((int)(10 * dpiScale), y + (int)(4 * dpiScale)),
-                    Width = (int)(180 * dpiScale)
+                    Width = (int)(180 * dpiScale),
+                    Height = (int)(25 * dpiScale) // Fix DPI clipping
                 });
 
                 var combo = new ComboBox
@@ -336,7 +339,8 @@ namespace LiteMonitor.ThemeEditor
                 {
                     Text = label,
                     Location = new Point((int)(10 * dpiScale), y + (int)(4 * dpiScale)),
-                    Width = (int)(180 * dpiScale)
+                    Width = (int)(180 * dpiScale),
+                    Height = (int)(25 * dpiScale) // Fix DPI clipping
                 });
 
                 var n = new NumericUpDown
@@ -406,7 +410,8 @@ namespace LiteMonitor.ThemeEditor
                 {
                     Text = label,
                     Location = new Point((int)(10 * dpiScale), y + (int)(6 * dpiScale)),
-                    Width = (int)(210 * dpiScale)
+                    Width = (int)(210 * dpiScale),
+                    Height = (int)(25 * dpiScale) // Fix DPI clipping
                 });
 
                 // 获取当前颜色

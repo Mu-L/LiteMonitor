@@ -70,6 +70,11 @@ namespace LiteMonitor.src.UI.SettingsPage
             _btnTabBar.Click += (s, e) => SwitchTab(true);
 
             _btnTabMain.Location = new Point(UIUtils.S(20), UIUtils.S(8));
+            // [Fix] 动态跟随：防止 HighDPI 下 AutoSize 尚未计算完成导致重叠
+            _btnTabMain.SizeChanged += (s, e) => {
+                 _btnTabBar.Location = new Point(_btnTabMain.Right + UIUtils.S(10), UIUtils.S(8));
+            };
+            // 初始也设置一次 (虽然此时 Width 可能不准，但有了 SizeChanged 兜底)
             _btnTabBar.Location = new Point(_btnTabMain.Right + UIUtils.S(10), UIUtils.S(8));
 
             _chkLinkHorizontal = new LiteCheck(false, LanguageManager.T("Menu.HorizontalFollowsTaskbar")) 
@@ -119,7 +124,8 @@ namespace LiteMonitor.src.UI.SettingsPage
         
         private Button CreateTabButton(string text, bool active)
         {
-            var btn = new Button { Text = text, AutoSize = true, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Font = UIFonts.Bold(9F), Padding = new Padding(5, 0, 5, 0) };
+            // [Fix] Scale Padding for High DPI
+            var btn = new Button { Text = text, AutoSize = true, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Font = UIFonts.Bold(9F), Padding = UIUtils.S(new Padding(5, 0, 5, 0)) };
             btn.FlatAppearance.BorderSize = 0;
             UpdateBtnStyle(btn, active);
             return btn;
