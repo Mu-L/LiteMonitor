@@ -26,6 +26,20 @@ namespace LiteMonitor.src.UI.Helpers
             _form.FormBorderStyle = FormBorderStyle.None;
             _form.ShowInTaskbar = false;
             _form.TopMost = topMost;
+
+            // [Fix #286] 动态切换 WS_EX_NOACTIVATE
+            // 当置顶开启时，启用 NOACTIVATE 以兼容串流场景；当置顶关闭时，禁用 NOACTIVATE 以恢复正常层级交互。
+            try
+            {
+                int ex = GetWindowLong(_form.Handle, GWL_EXSTYLE);
+                const int WS_EX_NOACTIVATE = 0x08000000;
+                
+                if (topMost)
+                    SetWindowLong(_form.Handle, GWL_EXSTYLE, ex | WS_EX_NOACTIVATE);
+                else
+                    SetWindowLong(_form.Handle, GWL_EXSTYLE, ex & ~WS_EX_NOACTIVATE);
+            }
+            catch { }
             
             // 解决 DoubleBuffered 访问权限问题
             typeof(Control).GetProperty("DoubleBuffered", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)

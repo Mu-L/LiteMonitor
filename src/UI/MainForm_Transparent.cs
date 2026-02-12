@@ -35,6 +35,14 @@ namespace LiteMonitor
                 cp.ExStyle |= 0x80; // WS_EX_TOOLWINDOW
                 cp.ExStyle &= ~0x00040000; // WS_EX_APPWINDOW
                 
+                // [Fix #286] 兼容性修复：Moonlight/Parsec 串流时，鼠标悬浮会导致分辨率跳变。
+                // 添加 WS_EX_NOACTIVATE 防止窗口抢占焦点，避免干扰串流软件的活动窗口判定。
+                // 仅在置顶模式下启用，否则会导致无法通过点击将窗口置于顶层
+                if (_cfg != null && _cfg.TopMost)
+                {
+                    cp.ExStyle |= 0x08000000;
+                } 
+
                 // [Fix] 启动时应用鼠标穿透配置，防止因句柄重建导致样式丢失
                 if (_cfg != null && _cfg.ClickThrough)
                 {
@@ -197,6 +205,14 @@ namespace LiteMonitor
                     _bizHelper.IsDragging = false;
                     _bizHelper.ClampToScreen(); 
                     _bizHelper.SavePos();
+                }
+                else if (e.Button == MouseButtons.Right)
+                {
+                    // [Fix] 兼容 Win10：在 WS_EX_NOACTIVATE (置顶) 模式下，
+                    // 右键菜单可能因为窗口未激活而表现异常（如点击无效、样式丢失）。
+                    // 因此在弹出菜单前，显式激活窗口。
+                    // 这虽然会暂时改变焦点，但作为用户主动的右键交互是合理的，不会影响纯悬浮时的防跳变功能。
+                    this.Activate();
                 }
             };
 

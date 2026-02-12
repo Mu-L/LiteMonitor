@@ -35,6 +35,9 @@ namespace LiteMonitor.src.SystemServices
 
         private readonly Dictionary<string, float> _lastValidMap = new();
         
+        // 状态标记 (防止并发重载)
+        private volatile bool _isReloading = false;
+
         // 计时器相关
         private long _tickCounter = 0;
         private double _secondAccumulator = 0;
@@ -158,6 +161,9 @@ namespace LiteMonitor.src.SystemServices
 
         public void UpdateAll()
         {
+            // [Fix #290] 标记是否需要触发重载（因硬件变更或故障）
+            bool needsReload = false;
+
             try
             {
                 // 1. 更新计时器
@@ -181,7 +187,19 @@ namespace LiteMonitor.src.SystemServices
                     foreach (var hw in _computer.Hardware)
                     {
                         if (hw.HardwareType == HardwareType.Cpu && requirements.NeedCpu) { hw.Update(); continue; }
-                        if (IsGpu(hw) && requirements.NeedGpu) { hw.Update(); continue; }
+                        
+                        // [Fix #290] 显卡防闪退保护：双显卡切换时 Update 可能抛出异常
+                        if (IsGpu(hw) && requirements.NeedGpu) 
+                        { 
+                            try { hw.Update(); }
+                            catch (Exception ex)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"[GPU Error] Update failed: {ex.Message}");
+                                needsReload = true;
+                            }
+                            continue; 
+                        }
+
                         if (hw.HardwareType == HardwareType.Memory && requirements.NeedMem) { hw.Update(); continue; }
                         if (hw.HardwareType == HardwareType.Battery && requirements.NeedBat) { hw.Update(); continue; }
 
@@ -220,6 +238,28 @@ namespace LiteMonitor.src.SystemServices
                 OnValuesUpdated?.Invoke();
             }
             catch { }
+
+            // [Fix #290] 硬件故障自动恢复
+            // 如果检测到 GPU 丢失或驱动崩溃，触发安全重载以刷新硬件列表
+            if (needsReload && !_isReloading)
+            {
+                _isReloading = true;
+                System.Diagnostics.Debug.WriteLine("[HardwareMonitor] Hardware change detected, triggering reload...");
+                
+                // 异步延迟重载，给硬件切换留出缓冲时间
+                Task.Run(async () => 
+                {
+                    try
+                    {
+                        await Task.Delay(2000); // 等待 2秒让系统硬件列表稳定
+                        ReloadComputerSafe();
+                    }
+                    finally
+                    {
+                        _isReloading = false;
+                    }
+                });
+            }
         }
 
         public void CleanMemory(Action<int>? onProgress = null) => SystemOptimizer.CleanMemory(onProgress);
